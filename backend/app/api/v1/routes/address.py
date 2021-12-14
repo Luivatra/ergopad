@@ -42,9 +42,23 @@ class Address:
 
   def ergoTree(self):
     if self.getType() == AddressKind['P2PK']:
-      return (b'\x00\x08\xcd' + self.publicKey()).hex()
+      # return (b'\x00\x08\xcd' + self.publicKey()).hex()
+      return (self.publicKey()).hex()
     else:
-      return self.addrBytes[:len(self.addrBytes) - 4]
+      return (self.addrBytes[:len(self.addrBytes) - 4]).hex()
+
+  def vlq(self):
+    vlq = lambda x: int("".join(bin(a|128)[3:] for a in x), 2)
+    return vlq([int(x) for x in str(int(self.ergoTree(), 16))])
+
+  def hex2vlq(self, hexString):
+    vlq = lambda x: int("".join(bin(a|128)[3:] for a in x), 2)
+    return vlq([int(x) for x in str(int(hexString, 16))])
+
+  def int2vlq(self, intString):
+    # hexString2intArray = [int(x) for x in str(int(e, 16))]
+    vlq = lambda x: int("".join(bin(a|128)[3:] for a in x), 2)
+    return vlq([int(x) for x in intString])
 
   def fromErgoTree(self, ergoTree, network):
     if ergoTree[:6] == '0008cd':
