@@ -65,7 +65,7 @@ const tokenAllocation = [
         color: '#1A6BD2'
     },
     {
-        x: 'Liqudity',
+        x: 'Liquidity',
         y: 6,
         color: '#3F7CDC'
     },
@@ -283,7 +283,7 @@ const Token = () => {
                         id="panel4bh-header"
                         >
                         <Typography variant="h5" sx={{ width: '33%', flexShrink: 0, mb: 0 }}>
-                            Liqudity Farming
+                            Liquidity Farming
                         </Typography>
                         </AccordionSummary>
                         <AccordionDetails>
