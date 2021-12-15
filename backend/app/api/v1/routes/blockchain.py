@@ -242,9 +242,9 @@ def purchaseToken(qty:int=-1, tokenId=CFG.ergopadTokenId, scScript='neverTrue'):
     convertToSeconds  = 60 # vestingDuration in minutes, *60 hours, *24 days, *7 weeks, ... make def for month/year calcs
     vestingBegin      = int(time()) + vestingDuration*convertToSeconds # now !! TODO: change this
     expiryEpoch       = vestingBegin + 2*(vestingPeriods*vestingDuration*convertToSeconds)
-    txFee             = CFG.txFee # 
+    txFee             = 20000000 # CFG.txFee # 
     txMin             = 100000 # .01 ergs; remove after reload ENV
-    txTotal           = txMin * vestingPeriods # without fee
+    txTotal           = txFee * vestingPeriods # txMin * vestingPeriods # without fee
     scPurchase        = getErgoscript('alwaysTrue', {'ergAmount': txMin, 'toAddress': buyerWallet.address})
     # scPurchase = getErgoscript('ergopad', {'buyerWallet': buyerWallet.address})
     logging.debug(f'smart contract: {scPurchase}')
@@ -269,7 +269,7 @@ def purchaseToken(qty:int=-1, tokenId=CFG.ergopadTokenId, scScript='neverTrue'):
       outBox.append({
         'address': scVesting,
         # 'script': scVesting,
-        'value': txMin,
+        'value': 2*txFee, # txMin,
         #'registers': {
         #  'R4': buyerWallet.ergoTree(),
         #  'R5': nodeWallet.ergoTree()
