@@ -10,6 +10,7 @@ next.config.js
 
 # testing
 /coverage
+/backend/app/ergo/*.ipynb
 
 # production
 /build
