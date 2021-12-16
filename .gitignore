@@ -14,6 +14,7 @@ next.config.js
 
 # production
 /build
+whitelist.csv
 
 # misc
 .DS_Store
