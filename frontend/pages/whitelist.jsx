@@ -67,7 +67,6 @@ const Whitelist = () => {
     // set true to disable submit button
     const [buttonDisabled, setbuttonDisabled] = useState(false)
     
-
     // form error object, all booleans
     const [formErrors, setFormErrors] = useState(initialFormErrors)
 
