@@ -10,9 +10,11 @@ frontend/next.config.js
 
 # testing
 /coverage
+/backend/app/ergo/*.ipynb
 
 # production
 /build
+whitelist.csv
 
 # misc
 .DS_Store
@@ -30,6 +32,9 @@ yarn-error.log*
 .env.test.local
 .env.production.local
 
+# ergonode
+/ergonode/*.conf
+
 # apps
 .vercel
 .metals/*
@@ -40,6 +45,9 @@ yarn-error.log*
 ergo*.log
 ergo*.tmp
 ergo.*.log.gz
+
+# nginx 
+/nginx/nginx.conf
 
 # assembler
 /assembler/data/*
