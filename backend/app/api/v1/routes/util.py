@@ -8,6 +8,7 @@ from fastapi import APIRouter #, Request
 from fastapi.encoders import jsonable_encoder
 from typing import Optional
 from pydantic import BaseModel
+from time import time
 
 from smtplib import SMTP
 
@@ -94,11 +95,13 @@ async def email(email: Email):
 
 @r.post("/whitelist")
 async def email(whitelist: Whitelist):
+    return {'status': 'completed'}
+
     usr = os.getenv('EMAIL_ERGOPAD_USERNAME')
     pwd = os.getenv('EMAIL_ERGOPAD_PASSWORD')
     svr = os.getenv('EMAIL_ERGOPAD_SMTP') 
     frm = 'whitelist@ergopad.io'
-    to = 'beanbrown@gmail.com'
+    to = 'ergopad.marketing@gmail.com'
     ctx = ssl.SSLContext(ssl.PROTOCOL_TLS)
 
     # create connection
@@ -120,7 +123,7 @@ async def email(whitelist: Whitelist):
 
     # save to database
     # con = create_engine('postgresql://frontend:invitetokencornerworld@3.87.194.195/ergopad')
-    con = create_engine('postgresql://frontend:invitetokencornerworld@3.87.194.195:5432/ergopad')
+    con = create_engine('postgresql://frontend:invitetokencornerworld@localhost:5432/ergopad')
     df = pd.DataFrame(jsonable_encoder(whitelist), index=[0])
     df.to_sql('whitelist', con=con, if_exists='append', index=False)
 
@@ -129,11 +132,10 @@ async def email(whitelist: Whitelist):
 @r.get("/whitelist")
 async def whitelist():
     try:
-        con = create_engine('postgresql://frontend:invitetokencornerworld@3.87.194.195:5432/ergopad')
-        res = con.execute('select sum("sigValue") as qty from whitelist')
+        con = create_engine('postgresql://frontend:invitetokencornerworld@localhost:5432/ergopad')
+        res = con.execute('select sum("sigValue") as qty from whitelist').fetchall()
 
-        return {'status': 'success', 'qty': int(res[0]['qty'])}
+        return {'status': 'success', 'qty': int(res[0]['qty']), 'gmt': int(time())}
 
     except Exception as e:
         return {'status': 'error', 'count': -1, 'desc': e}
-    
