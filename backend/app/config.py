@@ -20,19 +20,19 @@ Config = {
   # 'devnet':
   'testnet': dotdict({
     'explorer'          : 'https://api-testnet.ergoplatform.com/api/v1',
-    'assembler'         : 'http://assembler:8080',
+    'assembler'         : 'http://assembler:5678',
     'minTx'             : 100000, # smallest required for tx
     'txFee'             : 1000000, # min required
     'nanoergsInErg'     : 1000000000, # 1e9
     'tokenPriceNergs'   : 1500000000, # 1.5 ergs
     'ergopadTokenId'    : os.getenv('ERGOPAD_TOKENID'),
-    'node'              : 'http://ergonode:9052',
+    'node'              : 'http://192.168.1.81:9052',
     'ergopadApiKey'     : os.getenv('ERGOPAD_APIKEY'),
     'ergopadWallet'     : os.getenv('ERGOPAD_WALLET'),
-    'ergopadNode'       : 'http://ergonode:9052',
+    'ergopadNode'       : 'http://192.168.1.81:9052',
     'buyerApiKey'       : os.getenv('BUYER_APIKEY'),
     'buyerWallet'       : os.getenv('BUYER_WALLET'),
-    'buyerNode'         : 'http://ergonode2:9052',
+    'buyerNode'         : 'http://192.168.1.81:9052',
     'vestingPeriods'    : 3,
   }),
   'mainnet': dotdict({

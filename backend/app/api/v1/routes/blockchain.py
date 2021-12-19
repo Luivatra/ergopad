@@ -70,27 +70,27 @@ class TokenPurchase(BaseModel):
 try:
   # if DEBUG:
   validCurrencies    = {
-    'seedsale': '82d030c7373263c0f048031bfd214d49fea6942a114a291e36120694b4304e9e',
+    'seedsale': '8eb9a97f4c8e5409ade9a13625f2bbb9f8b081e51d37f623233444743fae8321',
     'sigusd'  : '03faf2cb329f2e90d6d23b58d91bbb6c046aa143261cc21f52fbe2824bfcbf04',
-    'ergopad' : '5ff2d1cc22ebf959b1cc65453e4ee225b0fdaf4c38a12e3b4ba32ff769bed70f',
+    'ergopad' : 'cc3c5dc01bb4b2a05475b2d9a5b4202ed235f7182b46677ed8f40358333b92bb',
   }
 
   CFG = Config[Network]
   CFG.ergopadTokenId = validCurrencies['ergopad'] # mainnet test / 10M minted to 9gibNzudNny7MtB725qGM3Pqftho1SMpQJ2GYLYRDDAftMaC285
   CFG.seedTokenId    = validCurrencies['seedsale'] # mainnet test / 1k minted to 9f2sfNnZDzwFGjFRqLGtPQYu94cVh3TcE2HmHksvZeg1PY5tGrZ
-  CFG.node           = 'http://192.168.1.81:9052'
-  CFG.assembler      = 'http://assembler:5678'
-  #CFG.ergopadApiKey  = 'headerbasketcandyjourney'
+  CFG.node           = 'http://73.203.30.137:9053'
+  CFG.assembler      = 'http://73.203.30.137:8080'
+  CFG.ergopadApiKey  = 'headerbasketcandyjourney'
   headers            = {'Content-Type': 'application/json'}
   tokenInfo          = requests.get(f'{CFG.explorer}/tokens/{CFG.ergopadTokenId}')
   
   # mainnet
-  #nodeWallet         = Wallet('9gibNzudNny7MtB725qGM3Pqftho1SMpQJ2GYLYRDDAftMaC285') # contains ergopad tokens
-  #buyerWallet        = Wallet('9f2sfNnZDzwFGjFRqLGtPQYu94cVh3TcE2HmHksvZeg1PY5tGrZ') # simulate buyer / seed tokens
+  nodeWallet         = Wallet('9gibNzudNny7MtB725qGM3Pqftho1SMpQJ2GYLYRDDAftMaC285') # contains ergopad tokens
+  buyerWallet        = Wallet('9f2sfNnZDzwFGjFRqLGtPQYu94cVh3TcE2HmHksvZeg1PY5tGrZ') # simulate buyer / seed tokens
 
   # testnet
-  nodeWallet         = Wallet('3WxMzA9TwMYh9M5ivSfHi5VqUDhUS6nX4B8ZQNqGLupZqZfivmUw') # contains tokens
-  buyerWallet        = Wallet('3WzKuUxmG7HtfmZNxxHw3ArPzsZZR96yrNkTLq4i1qFwVqBXAU8M') # simulate buyer
+  #nodeWallet         = Wallet('3WxMzA9TwMYh9M5ivSfHi5VqUDhUS6nX4B8ZQNqGLupZqZfivmUw') # contains tokens
+  #buyerWallet        = Wallet('3WzKuUxmG7HtfmZNxxHw3ArPzsZZR96yrNkTLq4i1qFwVqBXAU8M') # simulate buyer
 
 except Exception as e:
   logging.error(f'Init {e}')
@@ -277,11 +277,10 @@ def getErgoscript(name, params={}):
       }}"""
 
     # get the P2S address (basically a hash of the script??)
-    #logging.debug(script)
+    # logging.debug(script)
     p2s = requests.post(f'{CFG.assembler}/compile', headers=headers, json=script)
-    logging.debug(f'p2s: {p2s.content}')
     smartContract = p2s.json()['address']
-    
+    # logging.debug(f'p2s: {p2s.content}')
     # logging.info(f'smart contract: {smartContract}')
 
     return smartContract
@@ -472,7 +471,6 @@ async def purchaseToken(tokenPurchase: TokenPurchase):
         'ergopadTokenId': tokenId
       }
       scVesting = getErgoscript('vestingLock', params=params)
-
       logging.info(f'vesting period {i}: {ctime(int(params["vestingPeriodEpoch"])/1000)})')
 
       # create outputs for each vesting period; add remainder to final output, if exists
