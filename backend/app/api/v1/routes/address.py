@@ -1,5 +1,6 @@
 from base58 import b58encode, b58decode #, XRP_ALPHABET
 # from base58 import b58encode_check, b58decode_check
+from base64 import b64encode, b64decode
 from pyblake2 import blake2b
 from ecdsa import SECP256k1
 from types import SimpleNamespace
@@ -46,6 +47,9 @@ class Address:
       return (self.publicKey()).hex()
     else:
       return (self.addrBytes[:len(self.addrBytes) - 4]).hex()
+
+  def bs64(self):
+    return b64encode(self.ergoTree().encode('utf-8')).decode('utf-8')
 
   def vlq(self):
     vlq = lambda x: int("".join(bin(a|128)[3:] for a in x), 2)
@@ -125,6 +129,7 @@ if __name__ == '__main__':
     address: {address.address}
     addressBytes: {address.addrBytes}
     ergoTree: {address.ergoTree()}
+    b64_ergoTree: {address.bs64()}
     fromTree: {address.fromErgoTree(tree, network).publicKey()}
     fromPk: {address.fromPk(tree[6:72], network).publicKey()}
     fromBase58: {address.fromBase58(address.address).address}
