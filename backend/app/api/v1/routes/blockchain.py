@@ -68,31 +68,42 @@ class TokenPurchase(BaseModel):
   currency: Optional[str] = 'SigUSD'
 
 try:
-  # if DEBUG:
-  validCurrencies    = {
-    'seedsale': '8eb9a97f4c8e5409ade9a13625f2bbb9f8b081e51d37f623233444743fae8321',
-    'sigusd'  : '03faf2cb329f2e90d6d23b58d91bbb6c046aa143261cc21f52fbe2824bfcbf04',
-    'ergopad' : 'cc3c5dc01bb4b2a05475b2d9a5b4202ed235f7182b46677ed8f40358333b92bb',
-    # 'kushti' : 'cc3c5dc01bb4b2a05475b2d9a5b4202ed235f7182b46677ed8f40358333b92bb',
-    # '$COMET' : 'cc3c5dc01bb4b2a05475b2d9a5b4202ed235f7182b46677ed8f40358333b92bb',
-  }
-
   CFG = Config[Network]
-  CFG.ergopadTokenId = validCurrencies['ergopad'] # mainnet test / 10M minted to 9gibNzudNny7MtB725qGM3Pqftho1SMpQJ2GYLYRDDAftMaC285
-  CFG.seedTokenId    = validCurrencies['seedsale'] # mainnet test / 1k minted to 9f2sfNnZDzwFGjFRqLGtPQYu94cVh3TcE2HmHksvZeg1PY5tGrZ
-  CFG.node           = 'http://73.203.30.137:9053'
-  CFG.assembler      = 'http://73.203.30.137:8080'
-  CFG.ergopadApiKey  = 'headerbasketcandyjourney'
   headers            = {'Content-Type': 'application/json'}
   tokenInfo          = requests.get(f'{CFG.explorer}/tokens/{CFG.ergopadTokenId}')
-  
-  # mainnet
-  nodeWallet         = Wallet('9gibNzudNny7MtB725qGM3Pqftho1SMpQJ2GYLYRDDAftMaC285') # contains ergopad tokens
-  buyerWallet        = Wallet('9f2sfNnZDzwFGjFRqLGtPQYu94cVh3TcE2HmHksvZeg1PY5tGrZ') # simulate buyer / seed tokens
 
-  # testnet
-  # nodeWallet         = Wallet('3WwjaerfwDqYvFwvPRVJBJx2iUvCjD2jVpsL82Zho1aaV5R95jsG') # contains tokens
-  # buyerWallet        = Wallet('3WzKopFYhfRGPaUvC7v49DWgeY1efaCD3YpNQ6FZGr2t5mBhWjmw') # simulate buyer
+  if Network == 'testnet':
+    validCurrencies    = {
+      'seedsale': '81804ebd8d0eb51cfb03af1deb4d60e29be71fc73b9de55078650aa12e171eb9',
+      'sigusd'  : '03faf2cb329f2e90d6d23b58d91bbb6c046aa143261cc21f52fbe2824bfcbf04',
+      'ergopad' : '0890ad268cd62f29d09245baa423f2251f1d77ea21443a27d60c3c92377d2e4d',
+      # 'kushti' : '??',
+      # '$COMET' : '??',
+    }
+
+    CFG.node           = 'http://ergonode:9052'
+    CFG.assembler      = 'http://assembler:8080'
+    CFG.ergopadApiKey  = 'oncejournalstrangeweather'
+    nodeWallet         = Wallet('3WwjaerfwDqYvFwvPRVJBJx2iUvCjD2jVpsL82Zho1aaV5R95jsG') # contains tokens
+    buyerWallet        = Wallet('3WzKopFYhfRGPaUvC7v49DWgeY1efaCD3YpNQ6FZGr2t5mBhWjmw') # simulate buyer
+
+  else:
+    validCurrencies    = {
+      'seedsale': '8eb9a97f4c8e5409ade9a13625f2bbb9f8b081e51d37f623233444743fae8321',
+      'sigusd'  : '03faf2cb329f2e90d6d23b58d91bbb6c046aa143261cc21f52fbe2824bfcbf04',
+      'ergopad' : 'cc3c5dc01bb4b2a05475b2d9a5b4202ed235f7182b46677ed8f40358333b92bb',
+      # 'kushti' : '??',
+      # '$COMET' : '??',
+    }
+
+    CFG.node           = 'http://73.203.30.137:9053'
+    CFG.assembler      = 'http://73.203.30.137:8080'
+    CFG.ergopadApiKey  = 'headerbasketcandyjourney'
+    nodeWallet         = Wallet('9gibNzudNny7MtB725qGM3Pqftho1SMpQJ2GYLYRDDAftMaC285') # contains ergopad tokens
+    buyerWallet        = Wallet('9f2sfNnZDzwFGjFRqLGtPQYu94cVh3TcE2HmHksvZeg1PY5tGrZ') # simulate buyer / seed tokens
+
+  CFG.ergopadTokenId = validCurrencies['ergopad'] 
+  CFG.seedTokenId    = validCurrencies['seedsale']
 
 except Exception as e:
   logging.error(f'Init {e}')
@@ -140,7 +151,7 @@ async def getInfo():
       nodeInfo['buyer'] = buyerWallet.address
     nodeInfo['seller'] = nodeWallet.address 
 
-    nodeInfo['vestingBegin_ms'] = f'{ctime(1643245200*1000)} UTC'
+    nodeInfo['vestingBegin_ms'] = f'{ctime(1643245200)} UTC'
     nodeInfo['sigUSD'] = await get_asset_current_price('sigusd')
     nodeInfo['inDebugMode'] = ('PROD', '!! DEBUG !!')[DEBUG]
 
@@ -251,16 +262,19 @@ def getErgoscript(name, params={}):
       #   // sigmaProp(isValidSeller && isValidBuyer)
       #   sigmaProp(isValidBuyer)
       # }}"""
-      params['buyerWallet'] = '9f2sfNnZDzwFGjFRqLGtPQYu94cVh3TcE2HmHksvZeg1PY5tGrZ'
-      params['nodeWallet'] = '9gibNzudNny7MtB725qGM3Pqftho1SMpQJ2GYLYRDDAftMaC285'
-      params['timestamp'] = 1000000
+      # params['buyerWallet'] = '9f2sfNnZDzwFGjFRqLGtPQYu94cVh3TcE2HmHksvZeg1PY5tGrZ'
+      # params['nodeWallet'] = '9gibNzudNny7MtB725qGM3Pqftho1SMpQJ2GYLYRDDAftMaC285'
+      # params['timestamp'] = 1000000
       script = f"""{{
         val buyerPK = PK("{params['buyerWallet']}")
         val sellerPK = PK("{params['nodeWallet']}")
         val sellerOutput = OUTPUTS(0).propositionBytes == sellerPK.propBytes
         val returnFunds = {{
           val total = INPUTS.fold(0L, {{(x:Long, b:Box) => x + b.value}}) - 2000000
-          OUTPUTS(0).value >= total && OUTPUTS(0).propositionBytes == buyerPK.propBytes && OUTPUTS.size == 2
+
+          OUTPUTS(0).value >= total &&
+          OUTPUTS(0).propositionBytes == buyerPK.propBytes
+          // && OUTPUTS.size == 2 ?? vestingperiods+1
         }}
         sigmaProp((returnFunds || sellerOutput) && HEIGHT < {params['timestamp']})
       }}"""
@@ -274,16 +288,14 @@ def getErgoscript(name, params={}):
         // val isValidToken = SELF.tokens(0)._1 == "{params['ergopadTokenId']}"        
 
         // buyer can only spend after vesting period is complete
-        val isVested = {{
-            // buyerPK && 
-            OUTPUTS(0).propositionBytes == buyerPK.propBytes && 
+        val isVested = {{            
+            OUTPUTS(0).propositionBytes == buyerPK.propBytes && // buyerPK && 
             CONTEXT.preHeader.timestamp > {params['vestingPeriodEpoch']}L
         }}
 
         // abandonded; seller allowed recovery of tokens
-        val isExpired = {{
-            // sellerPK &&
-            OUTPUTS(0).propositionBytes == sellerPK.propBytes &&
+        val isExpired = {{            
+            OUTPUTS(0).propositionBytes == sellerPK.propBytes && // sellerPK &&
             CONTEXT.preHeader.timestamp > {params['expiryEpoch']}L
         }}
 
@@ -429,11 +441,11 @@ async def purchaseToken(tokenPurchase: TokenPurchase):
     price              = 5.3 # await get_asset_current_price('sigusd')
     sendAmount_nerg    = txFee_nerg + txBoxTotal_nerg
     coinAmount_nerg    = 0.0 # init
-    tokenAmount        = int(amount*100) # init
+    tokenAmount        = int(amount) # init
     if not isToken:
       coinAmount_nerg  = int(amount/price*nergsPerErg) # sigusd/price, 1 amount@5.3 = .188679 ergs
       sendAmount_nerg += coinAmount_nerg # additional send amount for coins
-      tokenAmount      = int(amount/.011*100) # seed round, 1 amount/sigusd = 90.9090 tokens
+      tokenAmount      = int(amount/.011) # seed round, 1 amount/sigusd = 90.9090 tokens
 
     # check whitelist
     whitelist = {}
@@ -486,10 +498,8 @@ async def purchaseToken(tokenPurchase: TokenPurchase):
       params = {
         'vestingPeriodEpoch': vestingBegin_ms + i*vestingDuration_ms,
         'expiryEpoch': expiryEpoch_ms,
-        'buyerWallet': buyerWallet.address,
-        'nodeWallet': nodeWallet.address,
-        'buyerTree': buyerWallet.bs64(),
-        'nodeTree': nodeWallet.bs64(),
+        'buyerWallet': buyerWallet.address, # 'buyerTree': buyerWallet.bs64(),
+        'nodeWallet': nodeWallet.address, # 'nodeTree': nodeWallet.bs64(),
         'ergopadTokenId': tokenId
       }
       logging.info(params)
@@ -518,6 +528,7 @@ async def purchaseToken(tokenPurchase: TokenPurchase):
         'returnTo': buyerWallet.address,
         'startWhen': {
             'erg': sendAmount_nerg,
+            validCurrencies['seedsale']: tokenAmount
         },
         'txSpec': {
             'requests': outBox,
@@ -553,8 +564,8 @@ async def purchaseToken(tokenPurchase: TokenPurchase):
     return {'status': 'error', 'def': myself(), 'message': e}
 
 # TEST - send payment from test wallet
-@r.get("/sendPayment/{address}/{nergs}", name="blockchain:sendPayment")
-def sendPayment(address, nergs):
+@r.get("/sendPayment/{address}/{nergs}/{tokens}", name="blockchain:sendPayment")
+def sendPayment(address, nergs, tokens):
   # TODO: require login/password or something; disable in PROD
   try:
     if not DEBUG:
@@ -585,7 +596,9 @@ def sendPayment(address, nergs):
     sendMe = [{
         'address': address,
         'value': int(nergs),
-        'assets': [],
+        'assets': [{"tokenId": validCurrencies['seedsale'], "amount": tokens}],
+        # 'assets': [],
+
     }]
     pay = requests.post(f'http://ergonode2:9052/wallet/payment/send', headers={'Content-Type': 'application/json', 'api_key': 'goalspentchillyamber'}, json=sendMe)
 
