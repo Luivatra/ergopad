@@ -7,6 +7,7 @@ from typing import Optional
 from pydantic import BaseModel
 from time import time, ctime
 from api.v1.routes.asset import get_asset_current_price
+from base64 import b64encode
 
 #region BLOCKHEADER
 """
@@ -75,18 +76,18 @@ try:
 
   if Network == 'testnet':
     validCurrencies    = {
-      'seedsale': '81804ebd8d0eb51cfb03af1deb4d60e29be71fc73b9de55078650aa12e171eb9',
+      'seedsale': '82d030c7373263c0f048031bfd214d49fea6942a114a291e36120694b4304e9e',
       'sigusd'  : '03faf2cb329f2e90d6d23b58d91bbb6c046aa143261cc21f52fbe2824bfcbf04',
-      'ergopad' : '0890ad268cd62f29d09245baa423f2251f1d77ea21443a27d60c3c92377d2e4d',
+      'ergopad' : '5ff2d1cc22ebf959b1cc65453e4ee225b0fdaf4c38a12e3b4ba32ff769bed70f',
       # 'kushti' : '??',
       # '$COMET' : '??',
     }
 
-    CFG.node           = 'http://ergonode:9052'
-    CFG.assembler      = 'http://assembler:8080'
-    CFG.ergopadApiKey  = 'oncejournalstrangeweather'
-    nodeWallet         = Wallet('3WwjaerfwDqYvFwvPRVJBJx2iUvCjD2jVpsL82Zho1aaV5R95jsG') # contains tokens
-    buyerWallet        = Wallet('3WzKopFYhfRGPaUvC7v49DWgeY1efaCD3YpNQ6FZGr2t5mBhWjmw') # simulate buyer
+    #CFG.node           = 'http://ergonode:9052'
+    #CFG.assembler      = 'http://assembler:8080'
+    #CFG.ergopadApiKey  = 'oncejournalstrangeweather'
+    nodeWallet         = Wallet('3WxMzA9TwMYh9M5ivSfHi5VqUDhUS6nX4B8ZQNqGLupZqZfivmUw') # contains tokens
+    buyerWallet        = Wallet('3WzKuUxmG7HtfmZNxxHw3ArPzsZZR96yrNkTLq4i1qFwVqBXAU8M') # simulate buyer
 
   else:
     validCurrencies    = {
@@ -187,9 +188,10 @@ def followInfo(followId):
 
 # find unspent boxes with tokens
 @r.get("/unspentTokens", name="blockchain:unspentTokens")
-def getBoxesWithUnspentTokens(tokenId=CFG.ergopadTokenId, allowMempool=True):
+def getBoxesWithUnspentTokens(nErgAmount=0,tokenId=CFG.ergopadTokenId,tokenAmount=0,allowMempool=True):
   try:
-    tot = 0
+    foundTokenAmount = 0
+    foundNErgAmount = 0
     ergopadTokenBoxes = {}    
 
     res = requests.get(f'{CFG.node}/wallet/boxes/unspent?minInclusionHeight=0&minConfirmations={(0, -1)[allowMempool]}', headers=dict(headers, **{'api_key': CFG.ergopadApiKey}))
@@ -197,19 +199,23 @@ def getBoxesWithUnspentTokens(tokenId=CFG.ergopadTokenId, allowMempool=True):
       assets = res.json()
       for ast in assets:
         if 'box' in ast:
-          if ast['box']['assets'] != []:
+          if foundNErgAmount < nErgAmount:
+            foundNErgAmount += ast['box']['value']
+            ergopadTokenBoxes[ast['box']['boxId']] = []
+          if ast['box']['assets'] != [] and foundTokenAmount < tokenAmount:
             for tkn in ast['box']['assets']:
               if 'tokenId' in tkn and 'amount' in tkn:
                 logging.info(tokenId)
                 if tkn['tokenId'] == tokenId:
-                  tot += tkn['amount']
+                  foundTokenAmount += tkn['amount']
                   if ast['box']['boxId'] in ergopadTokenBoxes:
                     ergopadTokenBoxes[ast['box']['boxId']].append(tkn)
                   else:
                     ergopadTokenBoxes[ast['box']['boxId']] = [tkn]
+                    foundNErgAmount += ast['box']['value']
                   logging.debug(tkn)
 
-      logging.info(f'found {tot} ergopad tokens in wallet')
+      logging.info(f'found {foundTokenAmount} ergopad tokens and {foundNErgAmount} nErg in wallet')
 
     # invalid wallet, no unspent boxes, etc..
     else:
@@ -232,7 +238,7 @@ def getErgoscript(name, params={}):
         val x = 1
         val y = 1
 
-        sigmaProp( x == y && HEIGHT < {params['timestamp']})
+        sigmaProp( x == y && HEIGHT < {params['timestamp']}L)
       }}"""
 
     if name == 'neverTrue':
@@ -269,7 +275,10 @@ def getErgoscript(name, params={}):
       script = f"""{{
         val buyerPK = PK("{params['buyerWallet']}")
         val sellerPK = PK("{params['nodeWallet']}")
-        val sellerOutput = OUTPUTS(0).propositionBytes == sellerPK.propBytes
+        // val tokenId = fromBase64("{params['purchaseToken']}")
+        val sellerOutput = {{
+          OUTPUTS(0).propositionBytes == sellerPK.propBytes && OUTPUTS(0).tokens(0)._2 == {params['purchaseTokenAmount']}L // && OUTPUTS(0).tokens(0)._1 == tokenId
+        }} 
         val returnFunds = {{
           val total = INPUTS.fold(0L, {{(x:Long, b:Box) => x + b.value}}) - 2000000
           OUTPUTS(0).value >= total && OUTPUTS(0).propositionBytes == buyerPK.propBytes && OUTPUTS.size == 2
@@ -282,12 +291,15 @@ def getErgoscript(name, params={}):
         // only buyer or seller allowed to unlock
         val buyerPK = PK("{params['buyerWallet']}")
         val sellerPK = PK("{params['nodeWallet']}") // ergopad.io
-
-        // val isValidToken = SELF.tokens(0)._1 == "{params['ergopadTokenId']}"        
+        //val tokenId = fromBase64("{params['ergopadTokenId']}")
+        //val isValidToken = {{
+        //    OUTPUTS(0).tokens(0)._1 == tokenId &&
+        //    OUTPUTS(0).tokens(0)._2 == {params['tokenAmount']}L
+        //}}        
 
         // buyer can only spend after vesting period is complete
         val isVested = {{
-            OUTPUTS(0).propositionBytes == buyerPK.propBytes && 
+            OUTPUTS(0).propositionBytes == buyerPK.propBytes &&
             CONTEXT.preHeader.timestamp > {params['vestingPeriodEpoch']}L
         }}
 
@@ -298,12 +310,13 @@ def getErgoscript(name, params={}):
         }}
 
         // check for proper tokenId?
-        sigmaProp(isVested || isExpired)
+        sigmaProp((isVested || isExpired)) // && isValidToken)
       }}"""
 
     # get the P2S address (basically a hash of the script??)
+    logging.debug(f'Script: {script}')
     p2s = requests.post(f'{CFG.assembler}/compile', headers=headers, json=script)
-    # logging.debug(f'p2s: {p2s.content}')
+    logging.debug(f'p2s: {p2s.content}')
     smartContract = p2s.json()['address']
     # logging.debug(f'smart contract: {smartContract}')
 
@@ -378,7 +391,7 @@ def redeemToken(box:str):
     'value': txFee_nerg,
     'assets': [{ 
       'tokenId': validCurrencies['ergopad'],
-      'amount': 2
+      'amount': 1
     }]
   }]
   request = {
@@ -419,9 +432,6 @@ async def purchaseToken(tokenPurchase: TokenPurchase):
     amount             = tokenPurchase.amount
     currency           = tokenPurchase.currency
     isToken            = tokenPurchase.isToken
-
-    # TODO: handle condition where this returns {}
-    ergopadTokenBoxes  = getBoxesWithUnspentTokens(tokenId)
 
     vestingPeriods     = 9 # CFG.vestingPeriods
     vestingDuration_ms = 1000*(30*24*60*60, 5*60)[DEBUG] # 5m if debug, else 30 days
@@ -493,7 +503,8 @@ async def purchaseToken(tokenPurchase: TokenPurchase):
         'expiryEpoch': expiryEpoch_ms,
         'buyerWallet': buyerWallet.address, # 'buyerTree': buyerWallet.bs64(),
         'nodeWallet': nodeWallet.address, # 'nodeTree': nodeWallet.bs64(),
-        'ergopadTokenId': tokenId
+        'ergopadTokenId': tokenId,
+        'tokenAmount': int(tokenAmount/vestingPeriods + remainder)
       }
       logging.info(params)
       scVesting = getErgoscript('vestingLock', params=params)
@@ -512,14 +523,23 @@ async def purchaseToken(tokenPurchase: TokenPurchase):
           'amount': int(tokenAmount/vestingPeriods + remainder)
         }]
       })
-    scPurchase = getErgoscript('walletLock', {'nodeWallet': nodeWallet.address, 'buyerWallet': buyerWallet.address, 'timestamp': int(time())})
+    params = {
+      'nodeWallet': nodeWallet.address,
+      'buyerWallet': buyerWallet.address,
+      'timestamp': int(time()),
+      'purchaseToken': b64encode(validCurrencies['seedsale'].encode('utf-8').hex().encode('utf-8')).decode('utf-8'),
+      #'purchaseToken': validCurrencies['seedsale'],
+      'purchaseTokenAmount': tokenAmount
+    }
+    scPurchase = getErgoscript('walletLock', params=params)
     # create transaction with smartcontract, into outbox(es), using tokens from ergopad token box
+    ergopadTokenBoxes  = getBoxesWithUnspentTokens(tokenId=tokenId,nErgAmount=(sendAmount_nerg-1000000),tokenAmount=tokenAmount)
     logging.info(f'build request')
     request = {
         'address': scPurchase,
         'returnTo': buyerWallet.address,
         'startWhen': {
-            'erg': sendAmount_nerg,
+            'erg': 1000000,
             validCurrencies['seedsale']: tokenAmount
         },
         'txSpec': {
@@ -540,7 +560,7 @@ async def purchaseToken(tokenPurchase: TokenPurchase):
     logging.info({'status': 'success', 'fin': fin.json(), 'followId': id})
     return({
         'status'        : 'success', 
-        'message'       : f'send {sendAmount_nerg} to {scPurchase}',
+        'message'       : f'send {tokenAmount} seedsale to {scPurchase}',
         'total'         : sendAmount_nerg/nergsPerErg,
         'coins'         : coinAmount_nerg/nergsPerErg,
         'boxes'         : txBoxTotal_nerg/nergsPerErg,
