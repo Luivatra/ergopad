@@ -275,9 +275,9 @@ def getErgoscript(name, params={}):
       script = f"""{{
         val buyerPK = PK("{params['buyerWallet']}")
         val sellerPK = PK("{params['nodeWallet']}")
-        // val tokenId = fromBase64("{params['purchaseToken']}")
+        val tokenId = fromBase64("{params['purchaseToken']}")
         val sellerOutput = {{
-          OUTPUTS(0).propositionBytes == sellerPK.propBytes && OUTPUTS(0).tokens(0)._2 == {params['purchaseTokenAmount']}L // && OUTPUTS(0).tokens(0)._1 == tokenId
+          OUTPUTS(0).propositionBytes == sellerPK.propBytes && OUTPUTS(0).tokens(0)._2 == {params['purchaseTokenAmount']}L && OUTPUTS(0).tokens(0)._1 == tokenId
         }} 
         val returnFunds = {{
           val total = INPUTS.fold(0L, {{(x:Long, b:Box) => x + b.value}}) - 2000000
@@ -527,7 +527,7 @@ async def purchaseToken(tokenPurchase: TokenPurchase):
       'nodeWallet': nodeWallet.address,
       'buyerWallet': buyerWallet.address,
       'timestamp': int(time()),
-      'purchaseToken': b64encode(validCurrencies['seedsale'].encode('utf-8').hex().encode('utf-8')).decode('utf-8'),
+      'purchaseToken': b64encode(bytes.fromhex(validCurrencies['seedsale'])).decode('utf-8'),
       #'purchaseToken': validCurrencies['seedsale'],
       'purchaseTokenAmount': tokenAmount
     }
