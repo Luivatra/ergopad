@@ -15,6 +15,7 @@ Blockchain API
 Created: vikingphoenixconsulting@gmail.com
 On: 20211009
 Purpose: allow purchase/redeem tokens locked by ergopad scripts
+Contributor(s): https://github.com/Luivatra
 
 Notes: 
 - /utils/ergoTreeToAddress/{ergoTreeHex} can convert from ergotree (in R4)
