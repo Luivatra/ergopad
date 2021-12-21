@@ -36,7 +36,7 @@ Config = {
     'vestingPeriods'    : 3,
   }),
   'mainnet': dotdict({
-    'node'              : 'http://ergonode:9053',
+    'node'              : os.getenv('ERGONODE_HOST'),
     'explorer'          : 'https://api.ergoplatform.com/api/v1',
     'ergopadApiKey'     : os.getenv('ERGOPAD_APIKEY'),
     'bogusApiKey'       : os.getenv('BOGUS_APIKEY'),

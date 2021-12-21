@@ -77,8 +77,9 @@ services:
     ports: 
       - ${PGADMIN_LISTEN_PORT}:${PGADMIN_LISTEN_PORT}
     depends_on:
-      - all
       - postgres
+    profiles: 
+      - all
 
   aggregator:
     container_name: aggregator
@@ -135,7 +136,7 @@ services:
       - ./ergonode/:/opt/ergo # jar/conf
       - /ergo/ergonode2/.ergo:/opt/ergo/.ergo # blockchain
     ports:
-      - ${ERGONODE2_PORT}:9053
+      - ${ERGONODE2_PORT}:9054
     working_dir: /opt/ergo
     command: java -jar -Xmx3G ergo-4.0.16.jar --mainnet -c ergonode2.conf
 
