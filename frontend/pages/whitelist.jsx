@@ -58,6 +58,13 @@ const initialCheckboxState = Object.freeze({
     dao: false
 })
 
+const defaultOptions = {
+    headers: {
+        'Content-Type': 'application/json',
+        // Authorization: auth?.accessToken ? `Bearer ${auth.accessToken}` : '',
+    },
+};
+
 const emailRegex = /\S+@\S+\.\S+/;
 
 const Whitelist = () => {
@@ -65,7 +72,7 @@ const Whitelist = () => {
     const [checkboxState, setCheckboxState] = useState(initialCheckboxState)
 
     // set true to disable submit button
-    const [buttonDisabled, setbuttonDisabled] = useState(false)
+    const [buttonDisabled, setbuttonDisabled] = useState(true)
     
     // form error object, all booleans
     const [formErrors, setFormErrors] = useState(initialFormErrors)
@@ -88,6 +95,8 @@ const Whitelist = () => {
     // disable form after API endpoint reports max submissions hit
     const [soldOut, setSoldOut] = useState(false)
 
+    const [timeLock, setTimeLock] = useState(true)
+
     // brings wallet data from AddWallet modal component. Will load from localStorage if wallet is set
     const { wallet } = useWallet()
 
@@ -98,30 +107,33 @@ const Whitelist = () => {
         setAddWalletOpen(true)
     }
 
-    useEffect(() => {
-        const defaultOptions = {
-            headers: {
-                'Content-Type': 'application/json',
-                // Authorization: auth?.accessToken ? `Bearer ${auth.accessToken}` : '',
-            },
-        };
+    const apiCheck = () => {
         axios.get(`${process.env.API_URL}/util/whitelist`, { ...defaultOptions })
             .then(res => {
-                if (res.data.qty > 130000) {
+                const maxSale = 550000
+                // console.log(res)
+                if (res.data.gmt > 1640538000 && !checkboxError && !soldOut) {
+                    setbuttonDisabled(false)
+                    setTimeLock(false)
+                    // console.log('set enabled due to GMT date API call')
+                }
+                if (res.data.qty > maxSale && !soldOut) {
                     setbuttonDisabled(true)
+                    // console.log('set disabled due to max applicants')
                     setSoldOut(true)
                 }
-                else {
+                else if (res.data.qty < maxSale) {
+                    // ('not sold out')
                     setSoldOut(false)
-                }
-
-                if (res.data.gmt < 1639155600) {
-                    setbuttonDisabled(true)
                 }
             })
             .catch((err) => {
 				console.log(err)
             }); 
+    }
+
+    useEffect(() => {
+        apiCheck()
     }, [buttonDisabled])
 
     useEffect(() => {
@@ -145,10 +157,8 @@ const Whitelist = () => {
 
     useEffect(() => {
         if (isLoading) {
+            // console.log('set disabled due to isLoading')
             setbuttonDisabled(true)
-        }
-        else {
-            setbuttonDisabled(false)
         }
     }, [isLoading])
 
@@ -183,7 +193,7 @@ const Whitelist = () => {
 
 		if (e.target.name == 'sigValue') {
 			const sigNumber = Number(e.target.value)
-			if (sigNumber <= 5000 && sigNumber > 0 ) {
+			if (sigNumber <= 20000 && sigNumber > 0 ) {
 				setFormErrors({
 					...formErrors,
 					sigValue: false
@@ -216,7 +226,11 @@ const Whitelist = () => {
     const checkboxError = [legal, risks, dao].filter((v) => v).length !== 3
 
     useEffect(() => {
-        checkboxError ? setbuttonDisabled(true) : setbuttonDisabled(false)
+        apiCheck()
+        if (checkboxError && buttonDisabled != true) {
+            setbuttonDisabled(true)
+            // console.log('set disabled due to checkbox error')
+        }
     }, [checkboxError])
 
     // snackbar for error reporting
@@ -240,12 +254,10 @@ const Whitelist = () => {
 		const errorCheck = Object.values(formErrors).every(v => v === false)
 		
         const form = {
-            to: "test@faketestemail.com",
-            subject: "ErgoPad Seed-Sale Whitelist Application",
+            to: process.env.FORM_EMAIL,
+            subject: "ErgoPad Strategic-Sale Whitelist Application",
             body: JSON.stringify(formData)
           }
-
-		// console.log(emptyCheck)
 
 		if (errorCheck && emptyCheck) { 
 			axios.post(`${process.env.API_URL}/util/email`, { ...form })
@@ -291,8 +303,8 @@ const Whitelist = () => {
     <>
         <Container maxWidth="lg" sx={{ px: {xs: 2, md: 3 } }}>
 		<PageTitle 
-			title="Seed Sale Whitelist"
-			subtitle="Apply here to be whitelisted for the ErgoPad seed sale. It is capped at $5000 sigUSD per investor, and we use your social media accounts to confirm unique identities to keep it fair for everyone."
+			title="Strategic Sale Whitelist"
+			subtitle="Apply here to be whitelisted for the ErgoPad strategic sale. It is capped at $20000 sigUSD per investor, and we use your social media accounts to confirm unique identities to keep it fair for everyone."
 			// main={true}
 		/>
         </Container>
@@ -365,11 +377,11 @@ const Whitelist = () => {
                 </Typography>
             
                 <Typography variant="p" sx={{ fontSize: '1rem', mb: 3 }}>
-                    Seed sale is capped at $5k sigUSD investment. You will receive an email whether your are accepted or if we need further details. We will also notify you in the event that the seed-sale is sold out, if that happens before we get to your application. 
+                    Strategic sale is capped at $20k sigUSD investment. You will receive an email whether your are accepted or if we need further details. We will also notify you in the event that the strategic-sale is sold out, if that happens before we get to your application. 
                 </Typography>
 
                 <Typography variant="p" sx={{ fontSize: '1rem', mb: 3 }}>
-                    You will be sent a URL to go to December 17 when seed-sale is live. Instructions will be provided at that time. 
+                    You will be sent a URL to go to January 3rd when strategic-sale is live. Instructions will be provided at that time. 
                 </Typography>
 			</Grid>
 
@@ -417,7 +429,7 @@ const Whitelist = () => {
                             label="How much would you like to invest"
                             name="sigValue"
                             variant="filled"
-                            helperText={formErrors.sigValue && 'Please enter between 1 and 5000 sigUSD'}
+                            helperText={formErrors.sigValue && 'Please enter between 1 and 20000 sigUSD'}
                             onChange={handleChange}
 							error={formErrors.sigValue}
 						/>
@@ -495,7 +507,7 @@ const Whitelist = () => {
                     </Grid>
                     <Grid item xs={12}>
                         <Typography sx={{ color: theme.palette.text.secondary, mt: 3 }}>
-                            Please provide another social platform we can confirm your identity on. It&apos;s just a point of reference so we can make sure each person signing up is unique and not trying to exceed the $5k max. We may DM you on there to confirm it is really you. 
+                            Please provide another social platform we can confirm your identity on. It&apos;s just a point of reference so we can make sure each person signing up is unique and not trying to exceed the $20k max. We may DM you on there to confirm it is really you. 
                         </Typography>
                     </Grid>
 					<Grid item xs={12} sm={6}>
@@ -585,8 +597,8 @@ const Whitelist = () => {
                         <Button
                             type="submit"
                             fullWidth
-                            // disabled={buttonDisabled}
-                            disabled={true}
+                            disabled={buttonDisabled}
+                            // disabled={true}
                             variant="contained"
                             sx={{ mt: 3, mb: 2 }}
                         >
@@ -606,7 +618,8 @@ const Whitelist = () => {
                             )}
 
                     </Box>
-                    <Typography sx={{ color: theme.palette.text.secondary }}>{soldOut && 'We apologize for the inconvenience, the seed round is sold out'}</Typography>
+                    <Typography sx={{ color: theme.palette.text.secondary }}>{soldOut && 'We apologize for the inconvenience, the strategic round is sold out'}</Typography>
+                    <Typography sx={{ color: theme.palette.text.secondary }}>{timeLock && 'Please wait until 17:00 UTC, December 26th. If the submit button is not active after this time and all check-boxes are checked, refresh the page to activate the form.'}</Typography>
 					<Snackbar open={openError} autoHideDuration={6000} onClose={handleCloseError}>
 						<Alert onClose={handleCloseError} severity="error" sx={{ width: '100%' }}>
 							{errorMessage}
@@ -623,7 +636,7 @@ const Whitelist = () => {
 						</DialogTitle>
 						<DialogContent>
 							<DialogContentText id="alert-dialog-description">
-								We have received your application and will get back to you shortly. If approved, instructions will be sent on how to secure your tokens on the 17th. Thanks a lot for your support!
+								We have received your application and will get back to you shortly. If approved, instructions will be sent on how to secure your tokens on January 3rd. Thanks a lot for your support!
 							</DialogContentText>
 						</DialogContent>
 						<DialogActions>
