@@ -1,4 +1,5 @@
 import requests, json, os
+
 from starlette.responses import JSONResponse 
 from wallet import Wallet # ergopad.io library
 from config import Config, Network # api specific config
@@ -7,6 +8,7 @@ from typing import Optional
 from pydantic import BaseModel
 from time import time, ctime
 from api.v1.routes.asset import get_asset_current_price
+from base64 import b64encode
 
 #region BLOCKHEADER
 """
@@ -52,6 +54,7 @@ Complete
 #endregion BLOCKHEADER
 
 DEBUG = True
+st = time() # stopwatch
 
 #region LOGGING
 import logging
@@ -187,9 +190,10 @@ def followInfo(followId):
 
 # find unspent boxes with tokens
 @r.get("/unspentTokens", name="blockchain:unspentTokens")
-def getBoxesWithUnspentTokens(tokenId=CFG.ergopadTokenId, allowMempool=True):
+def getBoxesWithUnspentTokens(nErgAmount=0, tokenId=CFG.ergopadTokenId, tokenAmount=0, allowMempool=True):
   try:
-    tot = 0
+    foundTokenAmount = 0
+    foundNErgAmount = 0
     ergopadTokenBoxes = {}    
 
     res = requests.get(f'{CFG.node}/wallet/boxes/unspent?minInclusionHeight=0&minConfirmations={(0, -1)[allowMempool]}', headers=dict(headers, **{'api_key': CFG.ergopadApiKey}))
@@ -197,19 +201,27 @@ def getBoxesWithUnspentTokens(tokenId=CFG.ergopadTokenId, allowMempool=True):
       assets = res.json()
       for ast in assets:
         if 'box' in ast:
-          if ast['box']['assets'] != []:
+          
+          # find enough boxes to handle nergs requested
+          if foundNErgAmount < nErgAmount:
+            foundNErgAmount += ast['box']['value']
+            ergopadTokenBoxes[ast['box']['boxId']] = []
+          
+          # find enough boxes with tokens to handle request
+          if ast['box']['assets'] != [] and foundTokenAmount < tokenAmount:
             for tkn in ast['box']['assets']:
               if 'tokenId' in tkn and 'amount' in tkn:
-                logging.info(tokenId)
+                 #logging.info(tokenId)
                 if tkn['tokenId'] == tokenId:
-                  tot += tkn['amount']
+                  foundTokenAmount += tkn['amount']
                   if ast['box']['boxId'] in ergopadTokenBoxes:
                     ergopadTokenBoxes[ast['box']['boxId']].append(tkn)
                   else:
                     ergopadTokenBoxes[ast['box']['boxId']] = [tkn]
-                  logging.debug(tkn)
+                    foundNErgAmount += ast['box']['value']
+                  # logging.debug(tkn)
 
-      logging.info(f'found {tot} ergopad tokens in wallet')
+      logging.info(f'found {foundTokenAmount} ergopad tokens and {foundNErgAmount} nErg in wallet')
 
     # invalid wallet, no unspent boxes, etc..
     else:
@@ -232,7 +244,7 @@ def getErgoscript(name, params={}):
         val x = 1
         val y = 1
 
-        sigmaProp( x == y )
+        sigmaProp( x == y && HEIGHT < {params['timestamp']}L )
       }}"""
 
     if name == 'neverTrue':
@@ -269,13 +281,17 @@ def getErgoscript(name, params={}):
       script = f"""{{
         val buyerPK = PK("{params['buyerWallet']}")
         val sellerPK = PK("{params['nodeWallet']}")
-        val sellerOutput = OUTPUTS(0).propositionBytes == sellerPK.propBytes
+        // val tokenId = fromBase64("{params['purchaseToken']}")
+        val sellerOutput = {{
+          OUTPUTS(0).propositionBytes == sellerPK.propBytes && 
+          OUTPUTS(0).tokens(0)._2 == {params['purchaseTokenAmount']}L 
+          // && OUTPUTS(0).tokens(0)._1 == tokenId
+        }}
         val returnFunds = {{
           val total = INPUTS.fold(0L, {{(x:Long, b:Box) => x + b.value}}) - 2000000
-
-          OUTPUTS(0).value >= total &&
-          OUTPUTS(0).propositionBytes == buyerPK.propBytes
-          // && OUTPUTS.size == 2 ?? vestingperiods+1
+          OUTPUTS(0).value >= total && 
+          OUTPUTS(0).propositionBytes == buyerPK.propBytes  &&
+          OUTPUTS.size == 2        
         }}
         sigmaProp((returnFunds || sellerOutput) && HEIGHT < {params['timestamp']})
       }}"""
@@ -287,23 +303,29 @@ def getErgoscript(name, params={}):
         val sellerPK = PK("{params['nodeWallet']}") // ergopad.io
 
         // val isValidToken = SELF.tokens(0)._1 == "{params['ergopadTokenId']}"        
+        // val tokenId = fromBase64("{params['ergopadTokenId']}")
+        // val isValidToken = {{
+        //    OUTPUTS(0).tokens(0)._1 == tokenId &&
+        //    OUTPUTS(0).tokens(0)._2 == {params['tokenAmount']}L
+        // }} 
 
         // buyer can only spend after vesting period is complete
-        val isVested = {{            
-            OUTPUTS(0).propositionBytes == buyerPK.propBytes && // buyerPK && 
+        val isVested = {{
+            OUTPUTS(0).propositionBytes == buyerPK.propBytes &&
             CONTEXT.preHeader.timestamp > {params['vestingPeriodEpoch']}L
         }}
 
         // abandonded; seller allowed recovery of tokens
-        val isExpired = {{            
-            OUTPUTS(0).propositionBytes == sellerPK.propBytes && // sellerPK &&
+        val isExpired = {{
+            OUTPUTS(0).propositionBytes == sellerPK.propBytes &&
             CONTEXT.preHeader.timestamp > {params['expiryEpoch']}L
         }}
 
         // check for proper tokenId?
-        sigmaProp(isVested || isExpired)
+        sigmaProp((isVested || isExpired)) // && isValidToken)
       }}"""
 
+    # logging.debug(f'Script: {script}')
     # get the P2S address (basically a hash of the script??)
     p2s = requests.post(f'{CFG.assembler}/compile', headers=headers, json=script)
     # logging.debug(f'p2s: {p2s.content}')
@@ -372,20 +394,19 @@ def findVestingTokens(wallet:str):
 @r.get("/redeem/{box}", name="blockchain:redeem")
 def redeemToken(box:str):
 
-  txFee_nerg = CFG.txFee # 
+  txFee_nerg = CFG.txFee
   txBoxTotal_nerg = 0
   scPurchase = getErgoscript('walletLock', {
     'nodeWalletTree': nodeWallet.bs64(), 
     'buyerWalletTree': buyerWallet.bs64(), 
-  }) # scPurchase        = getErgoscript('alwaysTrue', {'toAddress': buyerWallet.address}) # scPurchase = getErgoscript('alwaysTrue', {'ergAmount': txFee_nerg, 'toAddress': buyerWallet.address})
-  scPurchase = getErgoscript('alwaysTrue',{'timestamp': int(time())})
+  })
   # redeem
   outBox = [{
     'address': buyerWallet.address,
     'value': txFee_nerg,
     'assets': [{ 
       'tokenId': validCurrencies['ergopad'],
-      'amount': 2
+      'amount': 1
     }]
   }]
   request = {
@@ -427,9 +448,6 @@ async def purchaseToken(tokenPurchase: TokenPurchase):
     currency           = tokenPurchase.currency
     isToken            = tokenPurchase.isToken
 
-    # TODO: handle condition where this returns {}
-    ergopadTokenBoxes  = getBoxesWithUnspentTokens(tokenId)
-
     vestingPeriods     = 9 # CFG.vestingPeriods
     vestingDuration_ms = 1000*(30*24*60*60, 5*60)[DEBUG] # 5m if debug, else 30 days
     vestingBegin_ms    = 1000*(1643245200, int((time()+120)))[DEBUG] # in debug mode, choose now +2m
@@ -450,6 +468,14 @@ async def purchaseToken(tokenPurchase: TokenPurchase):
 
     # check whitelist
     whitelist = {}
+    blacklist = {}
+
+    # avoid catch if file DNE
+    try: os.stat(f'blacklist.tsv')
+    except: 
+      f = open(f'blacklist.tsv', 'w') # touch
+      f.close()
+
     try:
       with open(f'whitelist.csv') as f:
         wl = f.readlines()
@@ -457,6 +483,15 @@ async def purchaseToken(tokenPurchase: TokenPurchase):
           whitelist[w.split(',')[2].rstrip()] = {
             'amount': float(w.split(',')[0]),
             # 'tokens': round(float(w.split(',')[1]))
+          }
+
+      with open(f'blacklist.tsv') as f:
+        bl = f.readlines()
+        for l in bl:
+          row = l.split('\t')
+          blacklist[row[0]] = {
+            'timeStamp': row[1],
+            'tokenAmount': row[2]
           }
 
     except:
@@ -467,6 +502,9 @@ async def purchaseToken(tokenPurchase: TokenPurchase):
     if buyerWallet.address not in whitelist:
       logging.debug(f'wallet not found in whitelist: {buyerWallet.address}')
       return JSONResponse(status_code=status.HTTP_406_NOT_ACCEPTABLE, content=f'wallet, {buyerWallet.address} invalid or not on whitelist')
+    elif buyerWallet.address in blacklist:
+      logging.debug(f'wallet found in whitelist, but already redeemed: {buyerWallet.address}')
+      return JSONResponse(status_code=status.HTTP_406_NOT_ACCEPTABLE, content=f'wallet, {buyerWallet.address} already redeemed seedtokens')
 
     # make sure buyer remains under amount limit
     if amount > whitelist[buyerWallet.address]['amount']:
@@ -491,7 +529,6 @@ async def purchaseToken(tokenPurchase: TokenPurchase):
           'address': nodeWallet.address, # nodeWallet.bs64(),
           'value': coinAmount_nerg
       }]
-
     # box per vesting period
     for i in range(vestingPeriods):
       # in event the requested tokens do not divide evenly by vesting period, add remaining to final output
@@ -501,11 +538,13 @@ async def purchaseToken(tokenPurchase: TokenPurchase):
         'expiryEpoch': expiryEpoch_ms,
         'buyerWallet': buyerWallet.address, # 'buyerTree': buyerWallet.bs64(),
         'nodeWallet': nodeWallet.address, # 'nodeTree': nodeWallet.bs64(),
-        'ergopadTokenId': tokenId
+        'ergopadTokenId': tokenId,
+        'tokenAmount': int(tokenAmount/vestingPeriods + remainder),
       }
       logging.info(params)
       scVesting = getErgoscript('vestingLock', params=params)
       logging.info(f'vesting period {i}: {ctime(int(params["vestingPeriodEpoch"])/1000)})')
+      # ergopadTokenBoxes = getBoxesWithUnspentTokens(tokenId)
 
       # create outputs for each vesting period; add remainder to final output, if exists
       r4 = '0e'+hex(len(bytearray.fromhex(buyerWallet.ergoTree())))[2:]+buyerWallet.ergoTree() # convert to bytearray
@@ -520,15 +559,24 @@ async def purchaseToken(tokenPurchase: TokenPurchase):
           'amount': int(tokenAmount/vestingPeriods + remainder)
         }]
       })
-
-    scPurchase = getErgoscript('walletLock', {'nodeWallet': nodeWallet.address, 'buyerWallet': buyerWallet.address, 'timestamp': int(time())})
+    params = {
+      'nodeWallet': nodeWallet.address,
+      'buyerWallet': buyerWallet.address,
+      'timestamp': int(time()),
+      'purchaseToken': b64encode(validCurrencies['seedsale'].encode('utf-8').hex().encode('utf-8')).decode('utf-8'),
+      #'purchaseToken': validCurrencies['seedsale'],
+      'purchaseTokenAmount': tokenAmount
+    }
+    # scPurchase = getErgoscript('walletLock', {'nodeWallet': nodeWallet.address, 'buyerWallet': buyerWallet.address, 'timestamp': int(time())})
+    scPurchase = getErgoscript('walletLock', params=params)
     # create transaction with smartcontract, into outbox(es), using tokens from ergopad token box
+    ergopadTokenBoxes = getBoxesWithUnspentTokens(tokenId=tokenId, nErgAmount=(sendAmount_nerg-1000000), tokenAmount=tokenAmount)
     logging.info(f'build request')
     request = {
         'address': scPurchase,
         'returnTo': buyerWallet.address,
         'startWhen': {
-            'erg': sendAmount_nerg,
+            'erg': 1000000, # sendAmount_nerg,
             validCurrencies['seedsale']: tokenAmount
         },
         'txSpec': {
@@ -547,9 +595,16 @@ async def purchaseToken(tokenPurchase: TokenPurchase):
     id = res.json()['id']
     fin = requests.get(f'{CFG.assembler}/result/{id}')
     logging.info({'status': 'success', 'fin': fin.json(), 'followId': id})
+
+    # save buyer info
+    with open(f'blacklist.tsv', 'a') as f:
+      # buyer, timestamp, tokens
+      f.write('\t'.join([buyerWallet.address, str(time()), str(tokenAmount)]))
+  
+    logging.debug(f'::TOOK {time()-st:.2f}s')
     return({
         'status'        : 'success', 
-        'message'       : f'send {sendAmount_nerg} to {scPurchase}',
+        'message'       : f'send {tokenAmount} seedsale to {scPurchase}',
         'total'         : sendAmount_nerg/nergsPerErg,
         'coins'         : coinAmount_nerg/nergsPerErg,
         'boxes'         : txBoxTotal_nerg/nergsPerErg,
@@ -558,8 +613,7 @@ async def purchaseToken(tokenPurchase: TokenPurchase):
         'smartContract' : scPurchase, 
         'request'       : json.dumps(request),
     })
-    logging.debug(f'::TOOK {time()-st:.2f}s')
-  
+
   except Exception as e:
     logging.error(f'{myself()}: {e}')
     return {'status': 'error', 'def': myself(), 'message': e}
