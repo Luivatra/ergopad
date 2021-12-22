@@ -19,7 +19,8 @@ const timelineItems = [
 	{
 		date: 'December 17, 2021',
 		title: 'Seed Sale',
-		body: 'ErgoPad Seed Sale contracts become available. Whitelisted users will have 24 hours to send Erg and secure their tokens.'
+		body: 'ErgoPad Seed Sale contracts become available. Whitelisted users will have 24 hours to send Erg and secure their tokens.',
+		passed: true
 	},
 	{
 		date: 'December 26, 2021',
@@ -27,24 +28,24 @@ const timelineItems = [
 		body: 'Sign up to reserve access to the strategic sale'
 	},
 	{
-		date: 'December 30, 2021',
-		title: 'Strategic sale',
-		body: 'ErgoPad Strategic Sale contracts become available. Whitelisted users will have 24 hours to send Erg and secure their tokens.'
-	},
-	{
 		date: 'January 2, 2022',
 		title: 'First IDO Announcements',
 		body: 'By this date, we will announce at least one of the first IDOs launched on ErgoPad.'
 	},
 	{
-		date: 'January 12, 2022',
+		date: 'January 3, 2021',
+		title: 'Strategic sale',
+		body: 'ErgoPad Strategic Sale contracts become available. Whitelisted users will have 48 hours to send Erg and secure their tokens.'
+	},
+	{
+		date: 'January 15, 2022',
 		title: 'Pre-Sale Whitelist',
 		body: 'Sign up to reserve access to the pre-sale, the final sale before tokens are release to decentralized exchanges'
 	},
 	{
-		date: 'January 14, 2022',
+		date: 'January 20, 2022',
 		title: 'Pre-Sale',
-		body: 'ErgoPad pre-sale contracts become available. Whitelisted users will have 24 hours to send Erg and secure their tokens.'
+		body: 'ErgoPad pre-sale contracts become available. Whitelisted users will have 48 hours to send Erg and secure their tokens.'
 	},
 	{
 		date: 'January 26, 2022',
