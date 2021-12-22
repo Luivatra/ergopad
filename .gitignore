@@ -4,6 +4,8 @@ frontend/.next
 frontend/out
 frontend/yarn.lock
 frontend/next.config.js
+frontend/pages/whitelist.json
+frontend/pages/dashboardrechart.jsx
 /.pnp
 .pnp.js
 
