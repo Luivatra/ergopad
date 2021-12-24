@@ -100,8 +100,10 @@ try:
       # '$COMET' : '??',
     }
 
-    CFG.node           = 'http://73.203.30.137:9053'
-    CFG.assembler      = 'http://73.203.30.137:8080'
+    # CFG.node           = 'http://73.203.30.137:9053'
+    # CFG.assembler      = 'http://73.203.30.137:8080'
+    CFG.node           = 'http://38.15.40.14:9053'
+    CFG.assembler      = 'http://38.15.40.14:8888'
     CFG.ergopadApiKey  = 'headerbasketcandyjourney'
     nodeWallet         = Wallet('9gibNzudNny7MtB725qGM3Pqftho1SMpQJ2GYLYRDDAftMaC285') # contains ergopad tokens
     buyerWallet        = Wallet('9f2sfNnZDzwFGjFRqLGtPQYu94cVh3TcE2HmHksvZeg1PY5tGrZ') # simulate buyer / seed tokens
@@ -190,7 +192,7 @@ def followInfo(followId):
 
 # find unspent boxes with tokens
 @r.get("/unspentTokens", name="blockchain:unspentTokens")
-def getBoxesWithUnspentTokens(nErgAmount=0, tokenId=CFG.ergopadTokenId, tokenAmount=0, allowMempool=True):
+def getBoxesWithUnspentTokens(nErgAmount=-1, tokenId=CFG.ergopadTokenId, tokenAmount=-1, allowMempool=True):
   try:
     foundTokenAmount = 0
     foundNErgAmount = 0
@@ -203,12 +205,12 @@ def getBoxesWithUnspentTokens(nErgAmount=0, tokenId=CFG.ergopadTokenId, tokenAmo
         if 'box' in ast:
           
           # find enough boxes to handle nergs requested
-          if foundNErgAmount < nErgAmount:
+          if foundNErgAmount < nErgAmount or nErgAmount == -1:
             foundNErgAmount += ast['box']['value']
             ergopadTokenBoxes[ast['box']['boxId']] = []
           
           # find enough boxes with tokens to handle request
-          if ast['box']['assets'] != [] and foundTokenAmount < tokenAmount:
+          if ast['box']['assets'] != [] and (foundTokenAmount < tokenAmount or tokenAmount == -1):
             for tkn in ast['box']['assets']:
               if 'tokenId' in tkn and 'amount' in tkn:
                  #logging.info(tokenId)
@@ -281,19 +283,29 @@ def getErgoscript(name, params={}):
       script = f"""{{
         val buyerPK = PK("{params['buyerWallet']}")
         val sellerPK = PK("{params['nodeWallet']}")
-        // val tokenId = fromBase64("{params['purchaseToken']}")
+        val total = INPUTS.fold(0L, {{(x:Long, b:Box) => x + b.value}}) - 2000000L
+        val tokenId = fromBase64("{params['purchaseToken']}")
+        val tokenAmount = {params['purchaseTokenAmount']}L 
+        val timeStamp = {params['timestamp']}L
+
         val sellerOutput = {{
-          OUTPUTS(0).propositionBytes == sellerPK.propBytes && 
-          OUTPUTS(0).tokens(0)._2 == {params['purchaseTokenAmount']}L 
-          // && OUTPUTS(0).tokens(0)._1 == tokenId
+          // OUTPUTS(0).propositionBytes == sellerPK.propBytes && 
+          // OUTPUTS(0).tokens(0)._2 == {params['purchaseTokenAmount']}L &&
+          OUTPUTS(0).tokens(0)._1 == tokenId
         }}
+
         val returnFunds = {{
-          val total = INPUTS.fold(0L, {{(x:Long, b:Box) => x + b.value}}) - 2000000
-          OUTPUTS(0).value >= total && 
-          OUTPUTS(0).propositionBytes == buyerPK.propBytes  &&
-          OUTPUTS.size == 2        
+          OUTPUTS(0).propositionBytes == buyerPK.propBytes
+          // OUTPUTS(0).value >= total
+          // OUTPUTS.size == 2
         }}
-        sigmaProp((returnFunds || sellerOutput) && HEIGHT < {params['timestamp']})
+        
+        val isAlwaysTrue = {{
+          1 == 1
+        }}
+
+        // sigmaProp((returnFunds || sellerOutput || isAlwaysTrue) && HEIGHT < timeStamp)
+        sigmaProp((returnFunds || sellerOutput) && HEIGHT < timeStamp)
       }}"""
 
     if name == 'vestingLock':
@@ -331,6 +343,7 @@ def getErgoscript(name, params={}):
     # logging.debug(f'p2s: {p2s.content}')
     smartContract = p2s.json()['address']
     # logging.debug(f'smart contract: {smartContract}')
+    # logging.info(f':::{name}:::{script}')
 
     return smartContract
   
@@ -475,6 +488,7 @@ async def purchaseToken(tokenPurchase: TokenPurchase):
     except: 
       f = open(f'blacklist.tsv', 'w') # touch
       f.close()
+      pass
 
     try:
       with open(f'whitelist.csv') as f:
@@ -541,8 +555,9 @@ async def purchaseToken(tokenPurchase: TokenPurchase):
         'ergopadTokenId': tokenId,
         'tokenAmount': int(tokenAmount/vestingPeriods + remainder),
       }
-      logging.info(params)
+      # logging.info(params)
       scVesting = getErgoscript('vestingLock', params=params)
+      # logging.debug(scVesting)
       logging.info(f'vesting period {i}: {ctime(int(params["vestingPeriodEpoch"])/1000)})')
       # ergopadTokenBoxes = getBoxesWithUnspentTokens(tokenId)
 
@@ -570,7 +585,7 @@ async def purchaseToken(tokenPurchase: TokenPurchase):
     # scPurchase = getErgoscript('walletLock', {'nodeWallet': nodeWallet.address, 'buyerWallet': buyerWallet.address, 'timestamp': int(time())})
     scPurchase = getErgoscript('walletLock', params=params)
     # create transaction with smartcontract, into outbox(es), using tokens from ergopad token box
-    ergopadTokenBoxes = getBoxesWithUnspentTokens(tokenId=tokenId, nErgAmount=(sendAmount_nerg-1000000), tokenAmount=tokenAmount)
+    ergopadTokenBoxes = getBoxesWithUnspentTokens(tokenId=tokenId, nErgAmount=sendAmount_nerg, tokenAmount=tokenAmount)
     logging.info(f'build request')
     request = {
         'address': scPurchase,
