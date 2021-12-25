@@ -34,7 +34,7 @@ Date | Title | Description
 --- | --- | ---
 Dec 10, 2021 | Seed Sale Whitelist Week | An opportunity to sign up for the seed sale will last one week. Signup form will be on this website, and shared on all social platforms. 
 Dec 17, 2021 | Seed Sale | ErgoPad Seed Sale contracts become available. Whitelisted users will have 24 hours to send Erg and secure their tokens.
-Dec 30, 2021 | Strategic Sale Whitelist | Sign up to reserve access to the strategic sale
+Dec 26, 2021 | Strategic Sale Whitelist | Sign up to reserve access to the strategic sale
 Jan 2, 2022 | First IDO Announcements | By this date, we will announce at least one of the first IDOs launched on ErgoPad.
 Jan 3, 2021 | Strategic sale | ErgoPad Strategic Sale contracts become available. Whitelisted users will have 48 hours to send Erg and secure their tokens.
 Jan 15, 2022 | Pre-Sale Whitelist | Sign up to reserve access to the pre-sale, the final sale before tokens are release to decentralized exchanges
