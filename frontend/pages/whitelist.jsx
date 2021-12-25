@@ -253,11 +253,22 @@ const Whitelist = () => {
 		const emptyCheck = Object.values(formData).every(v => v != '')
 		const errorCheck = Object.values(formErrors).every(v => v === false)
 		
+        // const form = {
+        //     to: process.env.FORM_EMAIL,
+        //     subject: "ErgoPad Strategic-Sale Whitelist Application",
+        //     body: JSON.stringify(formData)
+        //   }
+
         const form = {
-            to: process.env.FORM_EMAIL,
-            subject: "ErgoPad Strategic-Sale Whitelist Application",
-            body: JSON.stringify(formData)
-          }
+            name: formData.name,
+            email: formData.email,
+            sigValue: formData.sigValue,
+            ergoAddress: formData.ergoAddress,
+            chatHandle: formData.chatHandle,
+            chatPlatform: formData.chatPlatform,
+            socialHandle: formData.socialHandle,
+            socialPlatform: formData.socialPlatform,
+        }
 
 		if (errorCheck && emptyCheck) { 
 			axios.post(`${process.env.API_URL}/util/email`, { ...form })
@@ -270,8 +281,9 @@ const Whitelist = () => {
 				setOpenSuccess(true)
             })
             .catch((err) => {
-                // snackbar for error message
-				setErrorMessage('ERROR POSTING: ' + err)
+                setErrorMessage('ERROR ' + err.response.status + ' ' + err.response.data.message)
+                setOpenError(true)
+                console.log(err.response.data)
                 setLoading(false)
             }); 
 		}
