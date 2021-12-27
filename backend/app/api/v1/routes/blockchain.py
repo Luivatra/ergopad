@@ -296,6 +296,25 @@ def getErgoscript(name, params={}):
         sigmaProp((returnFunds || sellerOutput) && HEIGHT < {params['timestamp']})
       }}"""
 
+    if name == 'sale':
+      script = f"""{{
+        val buyerPK = PK("{params['buyerWallet']}")
+        val sellerPK = PK("{params['nodeWallet']}")
+        val buyTokenId = fromBase64("{params['buyTokenId']}")
+        val saleTokenId = fromBase64("{params['saleTokenId']})
+        val sellerOutput = {{
+          OUTPUTS(0).propositionBytes == sellerPK.propBytes &&
+            ((buyTokenId.size == 0 && OUTPUTS(0).value == {params['purchaseTokenAmount']}) ||
+              (OUTPUTS(0).tokens(0)._2 == {params['purchaseTokenAmount']}L && OUTPUTS(0).tokens(0)._1 == buyTokenId))
+        }}
+        val buyerOutput = OUTPUTS(1).propositionBytes == buyerPK.propBytes && OUTPUTS(1).tokens(0)._2 == {params['saleTokenAmount']}L && OUTPUTS(1).tokens(0)._1 == saleTokenId
+        val returnFunds = {{
+          val total = INPUTS.fold(0L, {{(x:Long, b:Box) => x + b.value}}) - 2000000
+          OUTPUTS(0).value >= total && OUTPUTS(0).propositionBytes == buyerPK.propBytes && OUTPUTS.size == 2
+        }}
+        sigmaProp((returnFunds || (buyerOutput && sellerOutput)) && HEIGHT < {params['timestamp']})
+      }}"""
+
     if name == 'vestingLock':
       script = f"""{{
         // only buyer or seller allowed to unlock
