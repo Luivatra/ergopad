@@ -95,7 +95,8 @@ async def email(email: Email):
 
 @r.post("/whitelist")
 async def email(whitelist: Whitelist):
-    return {'status': 'completed'}
+    if time() < 1640502000:
+        return {'status': 'completed'}
 
     usr = os.getenv('EMAIL_ERGOPAD_USERNAME')
     pwd = os.getenv('EMAIL_ERGOPAD_PASSWORD')
@@ -125,6 +126,7 @@ async def email(whitelist: Whitelist):
     # con = create_engine('postgresql://frontend:invitetokencornerworld@3.87.194.195/ergopad')
     con = create_engine('postgresql://frontend:invitetokencornerworld@localhost:5432/ergopad')
     df = pd.DataFrame(jsonable_encoder(whitelist), index=[0])
+    df['event'] = ''
     df.to_sql('whitelist', con=con, if_exists='append', index=False)
 
     return {'status': 'success', 'detail': f'email sent to whitelist'}
