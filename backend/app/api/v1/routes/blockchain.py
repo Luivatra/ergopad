@@ -317,7 +317,7 @@ def getErgoscript(name, params={}):
         val buyerPK = PK("{params['buyerWallet']}")
         val sellerPK = PK("{params['nodeWallet']}")
         val buyTokenId = fromBase64("{params['buyTokenId']}")
-        val saleTokenId = fromBase64("{params['saleTokenId']})
+        val saleTokenId = fromBase64("{params['saleTokenId']}")
         val sellerOutput = {{
           OUTPUTS(0).propositionBytes == sellerPK.propBytes &&
             ((buyTokenId.size == 0 && OUTPUTS(0).value == {params['purchaseTokenAmount']}) ||
@@ -360,10 +360,10 @@ def getErgoscript(name, params={}):
         sigmaProp(isVested || isExpired) // && isValidToken)
       }}"""
 
-    # logging.debug(f'Script: {script}')
+    logging.debug(f'Script: {script}')
     # get the P2S address (basically a hash of the script??)
     p2s = requests.post(f'{CFG.assembler}/compile', headers=headers, json=script)
-    # logging.debug(f'p2s: {p2s.content}')
+    logging.debug(f'p2s: {p2s.content}')
     smartContract = p2s.json()['address']
     # logging.debug(f'smart contract: {smartContract}')
     # logging.info(f':::{name}:::{script}')
@@ -684,14 +684,26 @@ async def purchaseToken(tokenPurchase: TokenPurchase):
 
     logging.info(f'params: {params}')
 
-    scPurchase = getErgoscript('walletLock', params=params)
+    #scPurchase = getErgoscript('walletLock', params=params)
     # if vesting, use wallet lock to validate initial purchase, otherwise just send to node wallet
-    # if isSaleVested:
-      # scPurchase = getErgoscript('walletLock', {'nodeWallet': nodeWallet.address, 'buyerWallet': buyerWallet.address, 'timestamp': int(time())})
-      # scPurchase = getErgoscript('walletLock', params=params)
-      # scPurchase = getErgoscript('walletLock', params=params)
-    # else:
-    #   scPurchase = nodeWallet.address
+    if isSaleVested:
+      scPurchase = getErgoscript('walletLock', {'nodeWallet': nodeWallet.address, 'buyerWallet': buyerWallet.address, 'timestamp': int(time())})
+      scPurchase = getErgoscript('walletLock', params=params)
+      scPurchase = getErgoscript('walletLock', params=params)
+    else:
+      purchaseTokenAmount = int(amount*sigusdDecimals) if isToken else coinAmount_nerg
+      buyTokenId = b64encode(validCurrencies['sigusd'].encode('utf-8').hex().encode('utf-8')).decode('utf-8') if isToken else ""
+      params = {
+      'nodeWallet': nodeWallet.address,
+      'buyerWallet': buyerWallet.address,
+      'timestamp': int(time()),      
+      'buyTokenId': buyTokenId,
+      'saleTokenId': b64encode(validCurrencies['ergopad'].encode('utf-8').hex().encode('utf-8')).decode('utf-8'),
+      'purchaseTokenAmount': purchaseTokenAmount,
+      'saleTokenAmount': tokenAmount
+      }
+      logging.info(f'params: {params}')
+      scPurchase = getErgoscript('sale',params=params)
 
     logging.info(f'scPurchase: {scPurchase}')
 
@@ -717,7 +729,7 @@ async def purchaseToken(tokenPurchase: TokenPurchase):
 
     # make async request to assembler
     res = requests.post(f'{CFG.assembler}/follow', headers=headers, json=request)    
-
+    logging.debug(res)
     id = res.json()['id']
     fin = requests.get(f'{CFG.assembler}/result/{id}')
     logging.info({'status': 'success', 'fin': fin.json(), 'followId': id})
@@ -729,12 +741,12 @@ async def purchaseToken(tokenPurchase: TokenPurchase):
   
     logging.debug(f'::TOOK {time()-st:.2f}s')
     if isToken:
-      message = f'send {tokenAmount} {tokenName} to {scPurchase}'
+      message = f'send {sendAmount_nerg/nergsPerErg}ergs and {amount}sigusd to {scPurchase}'
     else:
-      message = f'send {tokenAmount} {tokenName} to {scPurchase}'
+      message = f'send {sendAmount_nerg/nergsPerErg}ergs to {scPurchase}'
     return({
         'status'        : 'success', 
-        'message'       : f'send {sendAmount_nerg}ergs and {tokenAmount/decimals}sigusd to {scPurchase}',
+        'message'       : message,
         'total'         : sendAmount_nerg/nergsPerErg,
         'coins'         : coinAmount_nerg/nergsPerErg,
         # 'boxes'         : txBoxTotal_nerg/nergsPerErg,
