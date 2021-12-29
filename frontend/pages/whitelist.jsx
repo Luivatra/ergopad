@@ -112,7 +112,7 @@ const Whitelist = () => {
             .then(res => {
                 const maxSale = 550000
                 // console.log(res)
-                if (res.data.gmt < 1640538000 && !checkboxError && !soldOut) {
+                if (res.data.gmt > 1640538000 && !checkboxError && !soldOut) {
                     setbuttonDisabled(false)
                     setTimeLock(false)
                     // console.log('set enabled due to GMT date API call')
