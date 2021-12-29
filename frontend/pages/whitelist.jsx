@@ -112,7 +112,7 @@ const Whitelist = () => {
             .then(res => {
                 const maxSale = 550000
                 // console.log(res)
-                if (res.data.gmt > 1640538000 && !checkboxError && !soldOut) {
+                if (res.data.gmt < 1640538000 && !checkboxError && !soldOut) {
                     setbuttonDisabled(false)
                     setTimeLock(false)
                     // console.log('set enabled due to GMT date API call')
@@ -213,6 +213,8 @@ const Whitelist = () => {
           // Trimming any whitespace
           [e.target.name]: e.target.value.trim()
         });
+
+        console.log(formData)
       };
 
     const handleChecked = (e) => {
@@ -271,7 +273,7 @@ const Whitelist = () => {
         }
 
 		if (errorCheck && emptyCheck) { 
-			axios.post(`${process.env.API_URL}/util/email`, { ...form })
+			axios.post(`${process.env.API_URL}/util/whitelist`, { ...form })
             .then(res => {
                 console.log(res);
                 console.log(res.data);
@@ -281,7 +283,8 @@ const Whitelist = () => {
 				setOpenSuccess(true)
             })
             .catch((err) => {
-                setErrorMessage('ERROR ' + err.response.status + ' ' + err.response.data.message)
+                // snackbar for error message
+				setErrorMessage('ERROR ' + err.response.status + ' ' + err.response.data.message)
                 setOpenError(true)
                 console.log(err.response.data)
                 setLoading(false)
