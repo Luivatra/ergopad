@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from time import time, ctime
 from api.v1.routes.asset import get_asset_current_price
 from base64 import b64encode
+import math
 
 #region BLOCKHEADER
 """
@@ -78,20 +79,20 @@ try:
 
   if Network == 'testnet':
     validCurrencies    = {
-      'seedsale' : '81804ebd8d0eb51cfb03af1deb4d60e29be71fc73b9de55078650aa12e171eb9',
-      'sigusd'   : '81804ebd8d0eb51cfb03af1deb4d60e29be71fc73b9de55078650aa12e171eb9',
-      'ergopad'  : '0890ad268cd62f29d09245baa423f2251f1d77ea21443a27d60c3c92377d2e4d', # 
+      'seedsale' : '82d030c7373263c0f048031bfd214d49fea6942a114a291e36120694b4304e9e',
+      'sigusd'   : '82d030c7373263c0f048031bfd214d49fea6942a114a291e36120694b4304e9e',
+      'ergopad'  : '5ff2d1cc22ebf959b1cc65453e4ee225b0fdaf4c38a12e3b4ba32ff769bed70f', # 
       # 'sigusd'   : '03faf2cb329f2e90d6d23b58d91bbb6c046aa143261cc21f52fbe2824bfcbf04', # official SigUSD
       # 'ergopad'  : '0890ad268cd62f29d09245baa423f2251f1d77ea21443a27d60c3c92377d2e4d', # TODO: need official ergonad token
       # 'kushti' : '??',
       # '$COMET' : '??',
     }
 
-    CFG.node           = 'http://ergonode:9052'
-    CFG.assembler      = 'http://assembler:8080'
-    CFG.ergopadApiKey  = 'oncejournalstrangeweather'
-    nodeWallet         = Wallet('3WwjaerfwDqYvFwvPRVJBJx2iUvCjD2jVpsL82Zho1aaV5R95jsG') # contains tokens
-    buyerWallet        = Wallet('3WzKopFYhfRGPaUvC7v49DWgeY1efaCD3YpNQ6FZGr2t5mBhWjmw') # simulate buyer
+    #CFG.node           = 'http://ergonode:9052'
+    #CFG.assembler      = 'http://assembler:8080'
+    #CFG.ergopadApiKey  = 'oncejournalstrangeweather'
+    nodeWallet         = Wallet('3WxMzA9TwMYh9M5ivSfHi5VqUDhUS6nX4B8ZQNqGLupZqZfivmUw') # contains tokens
+    buyerWallet        = Wallet('3WzKuUxmG7HtfmZNxxHw3ArPzsZZR96yrNkTLq4i1qFwVqBXAU8M') # simulate buyer
 
   # mainnet
   else:
@@ -482,43 +483,46 @@ async def purchaseToken(tokenPurchase: TokenPurchase):
   priceOverride = 5.0
   price = priceOverride
   try:
-    sigusdCurrentPrice = await get_asset_current_price('sigusd')
+    sigusdCurrentPrice = await get_asset_current_price('sigusd') #Confusing naming, is this erg price in sigusd?
     if 'price' in sigusdCurrentPrice:
       price = sigusdCurrentPrice['price']
-      if not int(str(price)).isnumeric(): # NaN
+      if math.isnan(price): # NaN
         price = priceOverride
       if price < 1 or price > 1000: # OOS
         price = priceOverride
 
-  except:
+  except Exception as e:
+    logging.error(f'{myself()}: {e}')
     logging.error('invalid price found for sigusd')
     pass
 
   # handle token params
-  decimals = 0
   sigusdDecimals = 0
   ergopadDecimals = 0
   try:
-    tokenDecimals = await getTokenInfo(validCurrencies['sigusd'])
+    tokenDecimals = getTokenInfo(validCurrencies['sigusd'])
+    logging.debug(tokenDecimals)
     if 'decimals' in tokenDecimals:
       sigusdDecimals = int(tokenDecimals['decimals'])
-    tokenDecimals = await getTokenInfo(validCurrencies['ergopad'])
+    tokenDecimals = getTokenInfo(validCurrencies['ergopad'])
     if 'decimals' in tokenDecimals:
       ergopadDecimals = int(tokenDecimals['decimals'])
 
-  except:
+  except Exception as e:
+    logging.error(f'{myself()}: {e}')
     logging.error('invalid decimals found for sigusd')
     pass
 
+  logging.info(f'decimals for sigusd: {sigusdDecimals}, ergopad: {ergopadDecimals}')
   ergopadDecimals = 10**ergopadDecimals
   sigusdDecimals = 10**sigusdDecimals
 
-  logging.info(f'decimals for sigusd: {sigusdDecimals}, ergopad: {ergopadDecimals}')
+  
 
   # handle purchase
   try:
     buyerWallet        = Wallet(tokenPurchase.wallet)
-    amount             = tokenPurchase.amount
+    amount             = tokenPurchase.amount #Purchase amount in SigUSD
 
     isToken = True
     tokenName          = 'sigusd'
@@ -537,18 +541,18 @@ async def purchaseToken(tokenPurchase: TokenPurchase):
     # txBoxTotal_nerg    = txFee_nerg*2 # 1 box with strategic, other with sigusd // *(1+vestingPeriods) # per vesting box + output box
 
     # if sending sigusd, isToken=True
-    strategic2Sigusd = .0002
-    coinAmount_nerg  = int(amount*nergsPerErg) # passed as erg, don't convert to sigusd // int(amount/price*nergsPerErg) # sigusd/price, 1 amount@5.3 = .188679 ergs
-    tokenAmount      = int(amount/price/strategic2Sigusd)*ergopadDecimals # strategic round .02 sigusd per token (50 strategic tokens per sigusd)
+    strategic2Sigusd = .02
+    coinAmount_nerg  = int(amount/price*nergsPerErg) # passed as erg, don't convert to sigusd // int(amount/price*nergsPerErg) # sigusd/price, 1 amount@5.3 = .188679 ergs
+    tokenAmount      = int(amount/strategic2Sigusd)*ergopadDecimals # strategic round .02 sigusd per token (50 strategic tokens per sigusd)
     if isToken:
       coinAmount_nerg  = txMin_nerg # min per box
-      tokenAmount      = int(amount/strategic2Sigusd)*ergopadDecimals # amount given in ergs, so convert to sigusd, then to strategic
+      #tokenAmount      = int(amount/strategic2Sigusd)*ergopadDecimals # amount given in ergs, so convert to sigusd, then to strategic
     sendAmount_nerg    = coinAmount_nerg+txMin_nerg+txFee_nerg # 2 output boxes
 
     if isToken:
       logging.info(f'using sigusd, amount={tokenAmount/ergopadDecimals:.2f} at price={price} for {amount}sigusd')
     else:
-      logging.info(f'using ergs, amount={tokenAmount/ergopadDecimals:.2f} at price={price}, for {amount}ergs ({coinAmount_nerg}nergs)')
+      logging.info(f'using ergs, amount={tokenAmount/ergopadDecimals:.2f} at price={price}, for {coinAmount_nerg/nergsPerErg:.2f}ergs ({coinAmount_nerg}nergs)')
 
     # check whitelist
     whitelist = {}
