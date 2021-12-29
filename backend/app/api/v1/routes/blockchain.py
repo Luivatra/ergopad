@@ -477,7 +477,7 @@ def redeemToken(box:str):
 @r.post("/purchase/", name="blockchain:purchaseToken")
 async def purchaseToken(tokenPurchase: TokenPurchase):  
   tokenId = CFG.ergopadTokenId
-    
+
   # handle price exceptions
   priceOverride = 5.0
   price = priceOverride
@@ -501,16 +501,19 @@ async def purchaseToken(tokenPurchase: TokenPurchase):
   try:
     tokenDecimals = await getTokenInfo(validCurrencies['sigusd'])
     if 'decimals' in tokenDecimals:
-      sigusdDecimals = tokenDecimals['decimals']
+      sigusdDecimals = int(tokenDecimals['decimals'])
     tokenDecimals = await getTokenInfo(validCurrencies['ergopad'])
     if 'decimals' in tokenDecimals:
-      ergopadDecimals = tokenDecimals['decimals']
+      ergopadDecimals = int(tokenDecimals['decimals'])
 
   except:
     logging.error('invalid decimals found for sigusd')
     pass
 
-  decimals *= 10
+  ergopadDecimals = 10**ergopadDecimals
+  sigusdDecimals = 10**sigusdDecimals
+
+  logging.info(f'decimals for sigusd: {sigusdDecimals}, ergopad: {ergopadDecimals}')
 
   # handle purchase
   try:
@@ -534,17 +537,18 @@ async def purchaseToken(tokenPurchase: TokenPurchase):
     # txBoxTotal_nerg    = txFee_nerg*2 # 1 box with strategic, other with sigusd // *(1+vestingPeriods) # per vesting box + output box
 
     # if sending sigusd, isToken=True
+    strategic2Sigusd = .0002
     coinAmount_nerg  = int(amount*nergsPerErg) # passed as erg, don't convert to sigusd // int(amount/price*nergsPerErg) # sigusd/price, 1 amount@5.3 = .188679 ergs
-    tokenAmount      = int(amount/price/.02)*ergopadDecimals # strategic round .02 sigusd per token (50 strategic tokens per sigusd)
+    tokenAmount      = int(amount/price/strategic2Sigusd)*ergopadDecimals # strategic round .02 sigusd per token (50 strategic tokens per sigusd)
     if isToken:
       coinAmount_nerg  = txMin_nerg # min per box
-      tokenAmount      = int(amount/.02)*ergopadDecimals # amount given in ergs, so convert to sigusd, then to strategic
-    sendAmount_nerg    = txFee_nerg+coinAmount_nerg
+      tokenAmount      = int(amount/strategic2Sigusd)*ergopadDecimals # amount given in ergs, so convert to sigusd, then to strategic
+    sendAmount_nerg    = coinAmount_nerg+txMin_nerg+txFee_nerg # 2 output boxes
 
     if isToken:
-      logging.info(f'using sigusd, amount={tokenAmount/sigusdDecimals:.2f} at price={price}')
+      logging.info(f'using sigusd, amount={tokenAmount/ergopadDecimals:.2f} at price={price} for {amount}sigusd')
     else:
-      logging.info(f'using ergs, amount={amount:.2f} ({coinAmount_nerg}nergs)')
+      logging.info(f'using ergs, amount={tokenAmount/ergopadDecimals:.2f} at price={price}, for {amount}ergs ({coinAmount_nerg}nergs)')
 
     # check whitelist
     whitelist = {}
@@ -603,7 +607,7 @@ async def purchaseToken(tokenPurchase: TokenPurchase):
     }]
     if isToken:
       outBox[0]['assets'] = [{
-            'tokenId': validCurrencies[tokenName],
+            'tokenId': validCurrencies[tokenName], # sigusd
             'amount': tokenAmount,
           }]
       startWhen[validCurrencies[tokenName]] = tokenAmount
@@ -651,7 +655,7 @@ async def purchaseToken(tokenPurchase: TokenPurchase):
       r4 = '0e'+hex(len(bytearray.fromhex(buyerWallet.ergoTree())))[2:]+buyerWallet.ergoTree() # convert to bytearray
       outBox.append({
         'address': buyerWallet.address,
-        'value': txFee_nerg,
+        'value': txMin_nerg,
         'registers': {
           'R4': r4
         },
