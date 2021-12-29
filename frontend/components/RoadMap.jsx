@@ -25,7 +25,8 @@ const timelineItems = [
 	{
 		date: 'December 26, 2021',
 		title: 'Strategic Sale Whitelist',
-		body: 'Sign up to reserve access to the strategic sale'
+		body: 'Sign up to reserve access to the strategic sale',
+		passed: true
 	},
 	{
 		date: 'January 2, 2022',
