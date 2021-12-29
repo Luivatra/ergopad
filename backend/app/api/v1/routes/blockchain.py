@@ -69,7 +69,7 @@ class TokenPurchase(BaseModel):
   wallet: str
   amount: float
   isToken: Optional[bool] = True
-  currency: Optional[str] = 'SigUSD'
+  currency: Optional[str] = 'sigusd'
 
 try:
   CFG = Config[Network]
@@ -78,9 +78,11 @@ try:
 
   if Network == 'testnet':
     validCurrencies    = {
-      'seedsale': '81804ebd8d0eb51cfb03af1deb4d60e29be71fc73b9de55078650aa12e171eb9',
-      'sigusd'  : '03faf2cb329f2e90d6d23b58d91bbb6c046aa143261cc21f52fbe2824bfcbf04',
-      'ergopad' : '0890ad268cd62f29d09245baa423f2251f1d77ea21443a27d60c3c92377d2e4d',
+      'seedsale' : '81804ebd8d0eb51cfb03af1deb4d60e29be71fc73b9de55078650aa12e171eb9',
+      'sigusd'   : '81804ebd8d0eb51cfb03af1deb4d60e29be71fc73b9de55078650aa12e171eb9',
+      'ergopad'  : '0890ad268cd62f29d09245baa423f2251f1d77ea21443a27d60c3c92377d2e4d', # 
+      # 'sigusd'   : '03faf2cb329f2e90d6d23b58d91bbb6c046aa143261cc21f52fbe2824bfcbf04', # official SigUSD
+      # 'ergopad'  : '0890ad268cd62f29d09245baa423f2251f1d77ea21443a27d60c3c92377d2e4d', # TODO: need official ergonad token
       # 'kushti' : '??',
       # '$COMET' : '??',
     }
@@ -91,11 +93,14 @@ try:
     nodeWallet         = Wallet('3WwjaerfwDqYvFwvPRVJBJx2iUvCjD2jVpsL82Zho1aaV5R95jsG') # contains tokens
     buyerWallet        = Wallet('3WzKopFYhfRGPaUvC7v49DWgeY1efaCD3YpNQ6FZGr2t5mBhWjmw') # simulate buyer
 
+  # mainnet
   else:
     validCurrencies    = {
-      'seedsale': '8eb9a97f4c8e5409ade9a13625f2bbb9f8b081e51d37f623233444743fae8321',
-      'sigusd'  : '03faf2cb329f2e90d6d23b58d91bbb6c046aa143261cc21f52fbe2824bfcbf04',
-      'ergopad' : 'cc3c5dc01bb4b2a05475b2d9a5b4202ed235f7182b46677ed8f40358333b92bb',
+      'seedsale' : '8eb9a97f4c8e5409ade9a13625f2bbb9f8b081e51d37f623233444743fae8321', # xeed1k
+      'sigusd'   : '8eb9a97f4c8e5409ade9a13625f2bbb9f8b081e51d37f623233444743fae8321', # xeed1k
+      'ergopad'  : 'cc3c5dc01bb4b2a05475b2d9a5b4202ed235f7182b46677ed8f40358333b92bb', # xerg10M / TESTING, strategic token
+      # 'sigusd'   : '03faf2cb329f2e90d6d23b58d91bbb6c046aa143261cc21f52fbe2824bfcbf04', # official SigUSD (SigmaUSD - V2)
+      # 'ergopad'  : 'cc3c5dc01bb4b2a05475b2d9a5b4202ed235f7182b46677ed8f40358333b92bb', # TODO: need official ergopad token
       # 'kushti' : '??',
       # '$COMET' : '??',
     }
@@ -105,11 +110,12 @@ try:
     CFG.node           = 'http://38.15.40.14:9053'
     CFG.assembler      = 'http://38.15.40.14:8888'
     CFG.ergopadApiKey  = 'headerbasketcandyjourney'
-    nodeWallet         = Wallet('9gibNzudNny7MtB725qGM3Pqftho1SMpQJ2GYLYRDDAftMaC285') # contains ergopad tokens
+    nodeWallet         = Wallet('9gibNzudNny7MtB725qGM3Pqftho1SMpQJ2GYLYRDDAftMaC285') # contains ergopad tokens (xerg10M)
     buyerWallet        = Wallet('9f2sfNnZDzwFGjFRqLGtPQYu94cVh3TcE2HmHksvZeg1PY5tGrZ') # simulate buyer / seed tokens
 
   CFG.ergopadTokenId = validCurrencies['ergopad'] 
   CFG.seedTokenId    = validCurrencies['seedsale']
+  CFG.sigusdTokenId  = validCurrencies['sigusd']
 
 except Exception as e:
   logging.error(f'Init {e}')
@@ -132,11 +138,8 @@ async def getInfo():
       # nodeInfo['network'] = Network
       # nodeInfo['uri'] = CFG.node
       nodeInfo['ergonodeStatus'] = 'ok'
-      if 'parameters' in i:
-        if 'height' in i['parameters']:
-          nodeInfo['currentHeight'] = i['parameters']['height']
-      if 'currentTime' in i:
-        nodeInfo['currentTime_ms'] = i['currentTime']
+      if 'headersHeight' in i: nodeInfo['currentHeight'] = i['headersHeight']
+      if 'currentTime' in i: nodeInfo['currentTime_ms'] = i['currentTime']
     else:
       nodeInfo['ergonode'] = 'error'
 
@@ -289,13 +292,13 @@ def getErgoscript(name, params={}):
         val timeStamp = {params['timestamp']}L
 
         val sellerOutput = {{
-          // OUTPUTS(0).propositionBytes == sellerPK.propBytes && 
+          // OUTPUTS(0).propositionBytes == sellerPK.propBytes  
           // OUTPUTS(0).tokens(0)._2 == {params['purchaseTokenAmount']}L &&
           OUTPUTS(0).tokens(0)._1 == tokenId
         }}
 
         val returnFunds = {{
-          OUTPUTS(0).propositionBytes == buyerPK.propBytes
+          INPUTS(0).propositionBytes == buyerPK.propBytes
           // OUTPUTS(0).value >= total
           // OUTPUTS.size == 2
         }}
@@ -304,8 +307,8 @@ def getErgoscript(name, params={}):
           1 == 1
         }}
 
-        // sigmaProp((returnFunds || sellerOutput || isAlwaysTrue) && HEIGHT < timeStamp)
-        sigmaProp((returnFunds || sellerOutput) && HEIGHT < timeStamp)
+        sigmaProp((returnFunds || sellerOutput || isAlwaysTrue) && HEIGHT < timeStamp)
+        // sigmaProp((returnFunds || sellerOutput) && HEIGHT < timeStamp)
       }}"""
 
     if name == 'sale':
@@ -353,7 +356,7 @@ def getErgoscript(name, params={}):
         }}
 
         // check for proper tokenId?
-        sigmaProp((isVested || isExpired)) // && isValidToken)
+        sigmaProp(isVested || isExpired) // && isValidToken)
       }}"""
 
     # logging.debug(f'Script: {script}')
@@ -431,7 +434,7 @@ def redeemToken(box:str):
   scPurchase = getErgoscript('walletLock', {
     'nodeWalletTree': nodeWallet.bs64(), 
     'buyerWalletTree': buyerWallet.bs64(), 
-  })
+  }) 
   # redeem
   outBox = [{
     'address': buyerWallet.address,
@@ -474,31 +477,74 @@ def redeemToken(box:str):
 @r.post("/purchase/", name="blockchain:purchaseToken")
 async def purchaseToken(tokenPurchase: TokenPurchase):  
   tokenId = CFG.ergopadTokenId
+    
+  # handle price exceptions
+  priceOverride = 5.0
+  price = priceOverride
+  try:
+    sigusdCurrentPrice = await get_asset_current_price('sigusd')
+    if 'price' in sigusdCurrentPrice:
+      price = sigusdCurrentPrice['price']
+      if not int(str(price)).isnumeric(): # NaN
+        price = priceOverride
+      if price < 1 or price > 1000: # OOS
+        price = priceOverride
+
+  except:
+    logging.error('invalid price found for sigusd')
+    pass
+
+  # handle token params
+  decimals = 0
+  sigusdDecimals = 0
+  ergopadDecimals = 0
+  try:
+    tokenDecimals = await getTokenInfo(validCurrencies['sigusd'])
+    if 'decimals' in tokenDecimals:
+      sigusdDecimals = tokenDecimals['decimals']
+    tokenDecimals = await getTokenInfo(validCurrencies['ergopad'])
+    if 'decimals' in tokenDecimals:
+      ergopadDecimals = tokenDecimals['decimals']
+
+  except:
+    logging.error('invalid decimals found for sigusd')
+    pass
+
+  decimals *= 10
+
+  # handle purchase
   try:
     buyerWallet        = Wallet(tokenPurchase.wallet)
     amount             = tokenPurchase.amount
-    currency           = tokenPurchase.currency
-    isToken            = tokenPurchase.isToken
-    tokenName          = 'sigusd' # 'seedsale'
-    isSaleVested       = False # TODO: round configs should come from config file/database
 
+    isToken = True
+    tokenName          = 'sigusd'
+    if tokenPurchase.currency == 'erg':  
+      isToken          = False
+      tokenName        = None
+
+    isSaleVested       = False # TODO: round configs should come from config file/database
     vestingPeriods     = 9 # CFG.vestingPeriods
     vestingDuration_ms = 1000*(30*24*60*60, 5*60)[DEBUG] # 5m if debug, else 30 days
     vestingBegin_ms    = 1000*(1643245200, int((time()+120)))[DEBUG] # in debug mode, choose now +2m
     expiryEpoch_ms     = vestingBegin_ms + 365*24*60*60*1000 # 1 year
-    txFee_nerg         = 1000000
-    txBoxTotal_nerg    = txFee_nerg*(1+vestingPeriods) # per vesting box + output box
     nergsPerErg        = 1000000000
+    txFee_nerg         = int(.001*nergsPerErg)
+    txMin_nerg         = int(.01*nergsPerErg)
+    # txBoxTotal_nerg    = txFee_nerg*2 # 1 box with strategic, other with sigusd // *(1+vestingPeriods) # per vesting box + output box
 
-    # given amount from web form, find tokens to send and ergs to receive
-    price              = 5.3 # await get_asset_current_price('sigusd')
-    sendAmount_nerg    = txFee_nerg + txBoxTotal_nerg
-    coinAmount_nerg    = 0.0 # init
-    tokenAmount        = int(amount) # init
-    if not isToken:
-      coinAmount_nerg  = int(amount/price*nergsPerErg) # sigusd/price, 1 amount@5.3 = .188679 ergs
-      sendAmount_nerg += coinAmount_nerg # additional send amount for coins
-      tokenAmount      = int(amount/.011) # seed round, 1 amount/sigusd = 90.9090 tokens
+    # if sending sigusd, isToken=True
+    coinAmount_nerg  = int(amount*nergsPerErg) # passed as erg, don't convert to sigusd // int(amount/price*nergsPerErg) # sigusd/price, 1 amount@5.3 = .188679 ergs
+    tokenAmount      = int(amount/price/.02)*ergopadDecimals # strategic round .02 sigusd per token (50 strategic tokens per sigusd)
+    if isToken:
+      coinAmount_nerg  = txMin_nerg # min per box
+      tokenAmount      = int(amount/.02)*ergopadDecimals # amount given in ergs, so convert to sigusd, then to strategic
+    sendAmount_nerg    = txFee_nerg+coinAmount_nerg
+
+    if isToken:
+      logging.info(f'using sigusd, amount={tokenAmount/sigusdDecimals:.2f} at price={price}')
+    else:
+      logging.info(f'using ergs, amount={amount:.2f} ({coinAmount_nerg}nergs)')
 
     # check whitelist
     whitelist = {}
@@ -550,21 +596,20 @@ async def purchaseToken(tokenPurchase: TokenPurchase):
     logging.info(f'wallet: ok\nwhitelist: ok\nergs: {coinAmount_nerg} at price {price}')
 
     # pay ergopad for tokens with coins or tokens
+    startWhen = {'erg': sendAmount_nerg}
+    outBox = [{
+        'address': nodeWallet.address, # nodeWallet.bs64(),
+        'value': coinAmount_nerg
+    }]
     if isToken:
-      outBox = [{
-          'address': nodeWallet.address, # nodeWallet.bs64(),
-          'value': txFee_nerg,
-          'assets': [{
+      outBox[0]['assets'] = [{
             'tokenId': validCurrencies[tokenName],
             'amount': tokenAmount,
           }]
-      }]
-    else:
-      outBox = [{
-          'address': nodeWallet.address, # nodeWallet.bs64(),
-          'value': coinAmount_nerg
-      }]
+      startWhen[validCurrencies[tokenName]] = tokenAmount
     
+    logging.info(f'startWhen: {startWhen}')
+
     # does the sale require vesting
     if isSaleVested:
       # box per vesting period
@@ -596,7 +641,7 @@ async def purchaseToken(tokenPurchase: TokenPurchase):
           },
           'assets': [{ 
             'tokenId': tokenId,
-            'amount': int(tokenAmount/vestingPeriods + remainder)
+            'amount': int((tokenAmount/vestingPeriods + remainder)*ergopadDecimals)
           }]
         })
 
@@ -612,27 +657,35 @@ async def purchaseToken(tokenPurchase: TokenPurchase):
         },
         'assets': [{ 
           'tokenId': tokenId,
-          'amount': tokenAmount # full amount
+          'amount': tokenAmount*ergopadDecimals # full amount
         }]
       })
+
+    logging.info(f'r4: {r4}')
+    logging.info(f'wallets: {nodeWallet.address}, {buyerWallet.address}')
+    logging.info(f"token: {tokenName}")
 
     # handle assembler
     params = {
       'nodeWallet': nodeWallet.address,
       'buyerWallet': buyerWallet.address,
-      'timestamp': int(time()),
-      'purchaseToken': b64encode(validCurrencies[tokenName].encode('utf-8').hex().encode('utf-8')).decode('utf-8'),
-      #'purchaseToken': validCurrencies[tokenName],
+      'timestamp': int(time()),      
+      'purchaseToken': b64encode(validCurrencies['ergopad'].encode('utf-8').hex().encode('utf-8')).decode('utf-8'),
       'purchaseTokenAmount': tokenAmount
     }
 
+    logging.info(f'params: {params}')
+
+    scPurchase = getErgoscript('walletLock', params=params)
     # if vesting, use wallet lock to validate initial purchase, otherwise just send to node wallet
-    if isSaleVested:
+    # if isSaleVested:
       # scPurchase = getErgoscript('walletLock', {'nodeWallet': nodeWallet.address, 'buyerWallet': buyerWallet.address, 'timestamp': int(time())})
       # scPurchase = getErgoscript('walletLock', params=params)
-      scPurchase = getErgoscript('walletLock', params=params)
-    else:
-      scPurchase = nodeWallet.address
+      # scPurchase = getErgoscript('walletLock', params=params)
+    # else:
+    #   scPurchase = nodeWallet.address
+
+    logging.info(f'scPurchase: {scPurchase}')
 
     # create transaction with smartcontract, into outbox(es), using tokens from ergopad token box
     ergopadTokenBoxes = getBoxesWithUnspentTokens(tokenId=tokenId, nErgAmount=sendAmount_nerg, tokenAmount=tokenAmount)
@@ -640,10 +693,7 @@ async def purchaseToken(tokenPurchase: TokenPurchase):
     request = {
         'address': scPurchase,
         'returnTo': buyerWallet.address,
-        'startWhen': {
-            'erg': 1000000, # sendAmount_nerg,
-            validCurrencies[tokenName]: tokenAmount
-        },
+        'startWhen': startWhen,
         'txSpec': {
             'requests': outBox,
             'fee': txFee_nerg,
@@ -651,6 +701,9 @@ async def purchaseToken(tokenPurchase: TokenPurchase):
             'dataInputs': [],
         },
     }
+    
+    logging.info(f'request: {request}')
+
     # logging.info(f'build request: {request}')
     # logging.info(f'\n::REQUEST::::::::::::::::::\n{json.dumps(request)}\n::REQUEST::::::::::::::::::\n')
 
@@ -667,12 +720,16 @@ async def purchaseToken(tokenPurchase: TokenPurchase):
       f.write('\t'.join([buyerWallet.address, str(time()), str(tokenAmount)]))
   
     logging.debug(f'::TOOK {time()-st:.2f}s')
+    if isToken:
+      message = f'send {tokenAmount} {tokenName} to {scPurchase}'
+    else:
+      message = f'send {tokenAmount} {tokenName} to {scPurchase}'
     return({
         'status'        : 'success', 
-        'message'       : f'send {tokenAmount} {tokenName} to {scPurchase}',
+        'message'       : f'send {sendAmount_nerg}ergs and {tokenAmount/decimals}sigusd to {scPurchase}',
         'total'         : sendAmount_nerg/nergsPerErg,
         'coins'         : coinAmount_nerg/nergsPerErg,
-        'boxes'         : txBoxTotal_nerg/nergsPerErg,
+        # 'boxes'         : txBoxTotal_nerg/nergsPerErg,
         'fees'          : txFee_nerg/nergsPerErg,
         'assembler'     : json.dumps(fin.json()),
         'smartContract' : scPurchase, 

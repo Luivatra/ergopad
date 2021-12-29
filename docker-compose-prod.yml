@@ -126,7 +126,12 @@ services:
     ports:
       - ${ERGONODE_PORT}:9053
     working_dir: /opt/ergo
-    command: java -jar -Xmx3G ergo-4.0.16.jar --mainnet -c mainnet.conf
+    logging:
+        driver: "json-file"
+        options:
+            max-file: 5
+            max-size: 10m
+    command: java -jar -Xmx8G -Dlogback.stdout.level=WARN -Dlogback.file.level=ERR ergo.jar --mainnet -c mainnet.conf
 
   ergonode2:
     container_name: ergonode2
@@ -138,7 +143,12 @@ services:
     ports:
       - ${ERGONODE2_PORT}:9054
     working_dir: /opt/ergo
-    command: java -jar -Xmx3G ergo-4.0.16.jar --mainnet -c ergonode2.conf
+    logging:
+        driver: "json-file"
+        options:
+            max-file: 5
+            max-size: 10m
+    command: java -jar -Xmx8G -Dlogback.stdout.level=WARN -Dlogback.file.level=ERR ergo.jar --mainnet -c ergonode2.conf
 
   assembler:
     container_name: assembler
