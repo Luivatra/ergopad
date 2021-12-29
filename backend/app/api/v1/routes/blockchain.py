@@ -321,9 +321,9 @@ def getErgoscript(name, params={}):
         val sellerOutput = {{
           OUTPUTS(0).propositionBytes == sellerPK.propBytes &&
             ((buyTokenId.size == 0 && OUTPUTS(0).value == {params['purchaseTokenAmount']}) ||
-              (OUTPUTS(0).tokens(0)._2 == {params['purchaseTokenAmount']}L && OUTPUTS(0).tokens(0)._1 == buyTokenId))
+              (OUTPUTS(0).tokens(0)._2 == {params['purchaseTokenAmount']} && OUTPUTS(0).tokens(0)._1 == buyTokenId))
         }}
-        val buyerOutput = OUTPUTS(1).propositionBytes == buyerPK.propBytes && OUTPUTS(1).tokens(0)._2 == {params['saleTokenAmount']}L && OUTPUTS(1).tokens(0)._1 == saleTokenId
+        val buyerOutput = OUTPUTS(1).propositionBytes == buyerPK.propBytes && OUTPUTS(1).tokens(0)._2 == {params['saleTokenAmount']} && OUTPUTS(1).tokens(0)._1 == saleTokenId
         val returnFunds = {{
           val total = INPUTS.fold(0L, {{(x:Long, b:Box) => x + b.value}}) - 2000000
           OUTPUTS(0).value >= total && OUTPUTS(0).propositionBytes == buyerPK.propBytes && OUTPUTS.size == 2
@@ -477,7 +477,7 @@ def redeemToken(box:str):
 # purchase tokens
 @r.post("/purchase/", name="blockchain:purchaseToken")
 async def purchaseToken(tokenPurchase: TokenPurchase):  
-  tokenId = CFG.ergopadTokenId
+  tokenId = validCurrencies['ergopad'] #CFG.ergopadTokenId
 
   # handle price exceptions
   priceOverride = 5.0
@@ -612,9 +612,9 @@ async def purchaseToken(tokenPurchase: TokenPurchase):
     if isToken:
       outBox[0]['assets'] = [{
             'tokenId': validCurrencies[tokenName], # sigusd
-            'amount': tokenAmount,
+            'amount': int(amount*sigusdDecimals),
           }]
-      startWhen[validCurrencies[tokenName]] = tokenAmount
+      startWhen[validCurrencies[tokenName]] = int(amount*sigusdDecimals)
     
     logging.info(f'startWhen: {startWhen}')
 
@@ -665,7 +665,7 @@ async def purchaseToken(tokenPurchase: TokenPurchase):
         },
         'assets': [{ 
           'tokenId': tokenId,
-          'amount': tokenAmount*ergopadDecimals # full amount
+          'amount': int(tokenAmount) # full amount
         }]
       })
 
@@ -692,13 +692,13 @@ async def purchaseToken(tokenPurchase: TokenPurchase):
       scPurchase = getErgoscript('walletLock', params=params)
     else:
       purchaseTokenAmount = int(amount*sigusdDecimals) if isToken else coinAmount_nerg
-      buyTokenId = b64encode(validCurrencies['sigusd'].encode('utf-8').hex().encode('utf-8')).decode('utf-8') if isToken else ""
+      buyTokenId =b64encode(bytes.fromhex(validCurrencies['sigusd'])).decode('utf-8') if isToken else ""
       params = {
       'nodeWallet': nodeWallet.address,
       'buyerWallet': buyerWallet.address,
       'timestamp': int(time()),      
       'buyTokenId': buyTokenId,
-      'saleTokenId': b64encode(validCurrencies['ergopad'].encode('utf-8').hex().encode('utf-8')).decode('utf-8'),
+      'saleTokenId': b64encode(bytes.fromhex(validCurrencies['ergopad'])).decode('utf-8'),
       'purchaseTokenAmount': purchaseTokenAmount,
       'saleTokenAmount': tokenAmount
       }
@@ -741,9 +741,9 @@ async def purchaseToken(tokenPurchase: TokenPurchase):
   
     logging.debug(f'::TOOK {time()-st:.2f}s')
     if isToken:
-      message = f'send {sendAmount_nerg/nergsPerErg}ergs and {amount}sigusd to {scPurchase}'
+      message = f'send {sendAmount_nerg/nergsPerErg} ergs and {amount} sigusd to {scPurchase}'
     else:
-      message = f'send {sendAmount_nerg/nergsPerErg}ergs to {scPurchase}'
+      message = f'send {sendAmount_nerg/nergsPerErg} ergs to {scPurchase}'
     return({
         'status'        : 'success', 
         'message'       : message,
