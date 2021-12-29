@@ -20,8 +20,13 @@ import DialogActions from '@mui/material/DialogActions';
 import DialogContent from '@mui/material/DialogContent';
 import DialogContentText from '@mui/material/DialogContentText';
 import DialogTitle from '@mui/material/DialogTitle';
-import MuiNextLink from '@components/MuiNextLink'
-import Image from 'next/image';
+import QRCode from "react-qr-code";
+import Card from '@mui/material/Card';
+import CardContent from '@mui/material/CardContent';
+import ToggleButton from '@mui/material/ToggleButton';
+import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
+import useMediaQuery from '@mui/material/useMediaQuery';
+import whitelist from './whitelist.json'
 
 const Alert = forwardRef(function Alert(props, ref) {
 	return <MuiAlert elevation={6} ref={ref} variant="filled" {...props} />;
@@ -29,13 +34,14 @@ const Alert = forwardRef(function Alert(props, ref) {
 
 const initialFormData = Object.freeze({
     wallet: '',
-    tokens: 0.0,
-    sigusd: 0.0
+    amount: 0.0,
+    isToken: true,
+    currency: 'sigusd'
   });
 
 const initialFormErrors = Object.freeze({
     wallet: false,
-    sigusd: false
+    amount: false
 });
 
 const initialCheckboxState = Object.freeze({
@@ -44,12 +50,19 @@ const initialCheckboxState = Object.freeze({
     dao: false
 })
 
-const initialSuccessMessage = Object.freeze({
-    ergs: '12',
-    address: 'xyz'
+const initialSuccessMessageData = Object.freeze({
+    ergs: '',
+    address: ''
 })
 
+function friendlyAddress(addr, tot = 13) {
+    if (addr === undefined || addr.slice === undefined) return ''
+    if (addr.length < 30) return addr
+    return addr.slice(0, tot) + '...' + addr.slice(-tot);
+}
+
 const Purchase = () => {
+    const mediumWidthUp = useMediaQuery((theme) => theme.breakpoints.up('md'));
     // boolean object for each checkbox
     const [checkboxState, setCheckboxState] = useState(initialCheckboxState)
 
@@ -66,15 +79,29 @@ const Purchase = () => {
 
     // open error snackbar 
 	const [openError, setOpenError] = useState(false);
+    // change error message for error snackbar
+	const [errorMessage, setErrorMessage] = useState('Please eliminate form errors and try again')
+
+    const [openSuccessSnackbar, setOpenSuccessSnackbar] = useState(false)
+    // change error message for error snackbar
+	const [successMessageSnackbar, setSuccessMessageSnackbar] = useState('Copied to Clipboard')
 
     // open success modal
 	const [openSuccess, setOpenSuccess] = useState(false);
 
-    // change error message for error snackbar
-	const [errorMessage, setErrorMessage] = useState('Please eliminate form errors and try again')
+    const [successMessageData, setSuccessMessageData] = useState(initialSuccessMessageData)
 
-    const [successMessage, setSuccessMessage] = useState(initialSuccessMessage)
+    const [sigusdAllowed, setSigusdAllowed] = useState(0.0)
 
+    const [alignment, setAlignment] = useState('sigusd');
+
+    const handleCurrencyChange = (e, newAlignment) => {
+        setAlignment(newAlignment);
+        updateFormData({
+            ...formData,
+            currency: e.target.value
+        });
+    };
 
     const { wallet } = useWallet()
     const { setAddWalletOpen } = useAddWallet()
@@ -83,14 +110,28 @@ const Purchase = () => {
         setAddWalletOpen(true)
     }
 
+    const sigusdApprovalMessage = () => {
+        if (wallet == '') {
+            return 'Please enter an Ergo address to see how much sigUSD is approved.'
+        }
+        if (wallet != '' && sigusdAllowed == 0.0) {
+            return 'This wallet is not approved on the whitelist. '
+        }
+        return ('This address is approved for ' + sigusdAllowed + ' sigUSD max')
+    }
+
     useEffect(() => {
+        let approved = false
 
-        ////////////////////////////////////////////////////////////////////////////
-        //////////// REQUIRES API CALL TO CHECK ////////////////////////////////////
-        ////////////////////////////////////////////////////////////////////////////
-        const approvedWallet = 'xyz'
+        Object.entries(whitelist).forEach(entry => {
+            const [key, value] = entry;
+            if (value.wallet == wallet) {
+                setSigusdAllowed(value.sigusd)
+                approved = true
+            }
+        })
 
-        if (wallet == approvedWallet) {
+        if (approved) {
             setFormErrors({
                 ...formErrors,
                 wallet: false
@@ -105,6 +146,7 @@ const Purchase = () => {
                 ...formErrors,
                 wallet: true
             });
+            setSigusdAllowed(0.0)
         }
     }, [wallet])
 
@@ -132,17 +174,29 @@ const Purchase = () => {
     }, [checkboxError])
 
     // snackbar for error reporting
-	const handleCloseError = (event, reason) => {
+	const handleCloseError = (e, reason) => {
 		if (reason === 'clickaway') {
 			return;
 		}
 		setOpenError(false);
 	};
 
+    const handleCloseSuccessSnackbar = (e, reason) => {
+		if (reason === 'clickaway') {
+			return;
+		}
+		setOpenSuccessSnackbar(false);
+	};
+
     // modal for success message
 	const handleCloseSuccess = () => {
 		setOpenSuccess(false);
 	};
+
+    const copyToClipboard = (text) => {
+        setSuccessMessageSnackbar('Copied ' + text + ' to clipboard')
+        setOpenSuccessSnackbar(true)
+    }
 
     const handleChange = (e) => {
         if (e.target.value == '' || e.target.value == 0.0) {
@@ -158,34 +212,27 @@ const Purchase = () => {
 			});
 		}
 
-        if (e.target.name == 'sigusd') {
-            
-            ////////////////////////////////////////////////////////////////////////////
-            //////////// REQUIRES API CALL TO CHECK ////////////////////////////////////
-            ////////////////////////////////////////////////////////////////////////////
-            const maxSig = 3000.0
-
+        if (e.target.name == 'amount') {
 			const sigNumber = Number(e.target.value)
-			if (sigNumber <= maxSig && sigNumber > 0.0 ) {
+			if (sigNumber <= 20000.0 && sigNumber > 0.0 && sigNumber <= sigusdAllowed) {
 				setFormErrors({
 					...formErrors,
-					sigusd: false
+					amount: false
 				});
                 updateFormData({
                     ...formData,
-                    sigusd: sigNumber,
-                    tokens: (sigNumber / 0.011)
+                    amount: sigNumber,
                 });
 			}
 			else {
 				setFormErrors({
 					...formErrors,
-					sigusd: true
+					amount: true
 				});
 			}
 		}
         
-        console.log(formErrors)
+        // console.log(formErrors)
       };
 
     const handleSubmit = (e) => {
@@ -195,10 +242,9 @@ const Purchase = () => {
 		const emptyCheck = Object.values(formData).every(v => (v != '') || (v != 0))
 		const errorCheck = Object.values(formErrors).every(v => v === false)
 
-        console.log(formData)
-        console.log(formErrors)
-
-        console.log('empty: ' + emptyCheck + ' error: ' + errorCheck)
+        // console.log(formData)
+        // console.log(formErrors)
+        // console.log('empty: ' + emptyCheck + ' error: ' + errorCheck)
 		
 		if (errorCheck && emptyCheck) { 
             console.log(formData)
@@ -210,14 +256,18 @@ const Purchase = () => {
 
                 // modal for success message
 				setOpenSuccess(true)
+                setSuccessMessageData({
+                    ...successMessageData,
+                    ergs: res.data.ergs,
+                    address: res.data.smartContract
+                })
             })
             .catch((err) => {
                 // snackbar for error message
 				setErrorMessage('ERROR POSTING: ' + err)
                 setLoading(false)
             }); 
-            setLoading(false)
-            setOpenSuccess(true)
+            // setLoading(false)
 		}
 		else {
 			let updateErrors = {}
@@ -250,7 +300,7 @@ const Purchase = () => {
         <Container maxWidth="lg" sx={{ px: {xs: 2, md: 3 } }}>
 		<PageTitle 
 			title="Purchase ErgoPad Tokens"
-			subtitle="If you are approved for seed-sale whitelist, you can purchase tokens here."
+			subtitle="If you are approved for strategic sale whitelist, you can purchase tokens here."
 		/>
         </Container>
 
@@ -273,19 +323,35 @@ const Purchase = () => {
 					<Typography variant="h4" sx={{ mb: 3, fontWeight: '700' }}>
 						Token Purchase Form
 					</Typography>
+                    <Typography variant="p" sx={{ fontSize: '1rem', mb: 1 }}>
+                        Note: {sigusdApprovalMessage()}
+                    </Typography>
                     <TextField
                         InputProps={{ disableUnderline: true }}
                         required
                         fullWidth
                         id="sigValue"
                         label="Enter the sigUSD value you are sending"
-                        name="sigusd"
+                        name="amount"
                         variant="filled"
                         sx={{ mb: 3 }}
                         onChange={handleChange}
                         error={formErrors.sigusd}
                         helperText={formErrors.sigusd && 'Must be a value below your approved amount'}
                     />
+
+                    <Typography variant="p" sx={{ fontSize: '1rem', mb: 1 }}>Select which currency you would like to send: </Typography>
+                    <ToggleButtonGroup
+                        color="primary"
+                        value={alignment}
+                        exclusive
+                        onChange={handleCurrencyChange}
+                        sx={{ mb: 3, mt: 0 }}
+                        >
+                        <ToggleButton value="sigusd">SigUSD</ToggleButton>
+                        <ToggleButton value="erg">Erg</ToggleButton>
+                    </ToggleButtonGroup>
+
 
                     <FormControl
                         variant="filled" 
@@ -369,8 +435,8 @@ const Purchase = () => {
                         <CircularProgress
                             size={24}
                             sx={{
-                                position: 'absolute',
-                                top: '50%',
+                                position: 'relative',
+                                top: '-40px',
                                 left: '50%',
                                 marginTop: '-9px',
                                 marginLeft: '-12px',
@@ -384,21 +450,49 @@ const Purchase = () => {
                         {errorMessage}
                     </Alert>
                 </Snackbar>
+                <Snackbar open={openSuccessSnackbar} autoHideDuration={6000} onClose={handleCloseSuccessSnackbar}>
+                    <Alert onClose={handleCloseSuccessSnackbar} severity="success" sx={{ width: '100%' }}>
+                        {successMessageSnackbar}
+                    </Alert>
+                </Snackbar>
                 <Dialog
                     open={openSuccess}
                     onClose={handleCloseSuccess}
                     aria-labelledby="alert-dialog-title"
                     aria-describedby="alert-dialog-description"
+                    sx={{ textAlign: 'center' }}
                 >
-                    <DialogTitle id="alert-dialog-title">
-                        Transaction Approved
+                    <DialogTitle id="alert-dialog-title" sx={{ pt: 3 }}>
+                        Click on the amount and the address to copy them!
                     </DialogTitle>
-                    <DialogContent>
+                    <DialogContent sx={{ display: 'flex', justifyContent: 'center', flexDirection: 'column', textAlign: 'center' }}>
                         <DialogContentText id="alert-dialog-description">
-                            <Typography>Click on the amount and the address to copy them!</Typography>
-                            <Typography>Please send exactly {successMessage.ergs} to {successMessage.address}</Typography>
+                            Please send exactly {' '}
+                            <Typography onClick={() => {
+                                    navigator.clipboard.writeText(successMessageData.ergs)
+                                    copyToClipboard(successMessageData.ergs)
+                                }
+                            } variant="span" sx={{ color: 'text.primary' }}>
+                                {successMessageData.ergs} Erg
+                            </Typography>
+                            {' '}to{' '}
+                            <Typography onClick={() => {
+                                    navigator.clipboard.writeText(successMessageData.address)
+                                    copyToClipboard(successMessageData.address)
+                                }
+                            } variant="span" sx={{ color: 'text.primary' }}>
+                                {friendlyAddress(successMessageData.address)}
+                            </Typography>
                         </DialogContentText>
-                        <Image src="/qr.png" alt="qr code" layout="responsive" width="400" height="400" />
+                        <Card sx={{ background: '#fff', width: {xs: '200px', md: '370px'}, margin: '16px auto', display: 'flex', justifyContent: 'center'}}>
+                            <CardContent sx={{ display: 'flex', justifyContent: 'center' }}>
+                                <QRCode
+                                    size={mediumWidthUp ? 320 : 160}
+                                    value={"https://explorer.ergoplatform.com/payment-request?address=" + successMessageData.address +
+                                    "&amount=" + successMessageData.ergs}
+                                />
+                            </CardContent>
+                        </Card>
                     </DialogContent>
                     <DialogActions>
                         <Button onClick={handleCloseSuccess} autoFocus>
