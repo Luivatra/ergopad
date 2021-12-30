@@ -1,4 +1,12 @@
-import { Typography, Modal, Box, Paper } from '@mui/material';
+import {
+  Typography,
+  Modal,
+  Box,
+  Paper,
+  Accordion,
+  AccordionDetails,
+  AccordionSummary,
+} from '@mui/material';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import { useTheme } from '@mui/material/styles';
 
@@ -16,14 +24,30 @@ const style = {
   overflowY: 'scroll',
 };
 
+const flattenJSON = (jsonData) => {
+  const _flattenJSON = (obj = {}, res = {}) => {
+    Object.keys(obj).forEach((key) => {
+      if (typeof obj[key] !== 'object') {
+        res[key] = obj[key];
+      } else {
+        _flattenJSON(obj[key], res);
+      }
+    });
+    return res;
+  };
+  return _flattenJSON(jsonData);
+};
+
 const parseDescription = (description) => {
   try {
-    return JSON.stringify(JSON.parse(description), null, 2);
+    return flattenJSON(JSON.parse(description));
   } catch (e) {
     try {
-      return JSON.stringify(JSON.parse(description.slice(1)), null, 2);
+      // parse error some descriptions have unicode escape characters as the first character
+      return flattenJSON(JSON.parse(description.slice(1)));
     } catch (e) {
-      return description;
+      // description is a string
+      return { Description: description ? description : '' };
     }
   }
 };
@@ -31,6 +55,7 @@ const parseDescription = (description) => {
 const AssetModal = ({ open, handleClose, asset }) => {
   const theme = useTheme();
   const matches = useMediaQuery(theme.breakpoints.up('md'));
+  const metadata = parseDescription(asset?.description);
 
   return (
     <Modal
@@ -46,13 +71,37 @@ const AssetModal = ({ open, handleClose, asset }) => {
         </Typography>
         <Typography
           id="modal-modal-description"
-          sx={{ mt: 2, overflowX: 'scroll', fontSize: '0.8rem' }}
+          sx={{ mt: 2, fontSize: '0.8rem' }}
         >
-          <pre>Description: {parseDescription(asset?.description)}</pre>
-          <pre>id: {asset?.id}</pre>
-          <pre>ch: {asset?.ch}</pre>
-          <pre>token: {asset?.token}</pre>
-          <pre>amount: {asset?.amount}</pre>
+          <pre>
+            <strong>Token ID:</strong> {asset?.id}
+          </pre>
+          <pre>
+            <strong>ch:</strong> {asset?.ch}
+          </pre>
+          <pre>
+            <strong>Token:</strong> {asset?.token}
+          </pre>
+          <pre>
+            <strong>Amount:</strong> {asset?.amount}
+          </pre>
+          <Accordion>
+            <AccordionSummary>
+              <strong>Expand for Description</strong>
+            </AccordionSummary>
+            <AccordionDetails sx={{ overflowX: 'scroll' }}>
+              {Object.keys(metadata)
+                .filter((key) => !key.match(/^[0-9]+$/))
+                .map((key) => (
+                  <pre>
+                    <strong>
+                      {key.charAt(0).toUpperCase() + key.slice(1)}:
+                    </strong>{' '}
+                    {metadata[key]}
+                  </pre>
+                ))}
+            </AccordionDetails>
+          </Accordion>
         </Typography>
         {asset?.r9 ? (
           <Paper variant="outlined" sx={{ mt: 5 }}>
