@@ -9,6 +9,7 @@ import {
 } from '@mui/material';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import { useTheme } from '@mui/material/styles';
+import Image from 'next/image'
 
 const style = {
   position: 'absolute',
@@ -89,23 +90,29 @@ const AssetModal = ({ open, handleClose, asset }) => {
             <AccordionSummary>
               <strong>Expand for Description</strong>
             </AccordionSummary>
-            <AccordionDetails sx={{ overflowX: 'scroll' }}>
+            <AccordionDetails sx={{ overflowWrap: 'break-word' }}>
+              
               {Object.keys(metadata)
                 .filter((key) => !key.match(/^[0-9]+$/))
                 .map((key) => (
-                  <pre>
+                  <>
+                  
+                  <Typography sx={{ fontSize: '0.9rem', mb: 1 }}>
                     <strong>
                       {key.charAt(0).toUpperCase() + key.slice(1)}:
                     </strong>{' '}
                     {metadata[key]}
-                  </pre>
+                  </Typography>
+                  
+                  </>
                 ))}
+                
             </AccordionDetails>
           </Accordion>
         </Typography>
         {asset?.r9 ? (
           <Paper variant="outlined" sx={{ mt: 5 }}>
-            <img width="100%" src={asset?.r9} />
+            <img width="100%" src={asset?.r9} alt={asset?.name} />
           </Paper>
         ) : null}
       </Box>
