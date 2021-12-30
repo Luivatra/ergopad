@@ -1,6 +1,5 @@
 import AssetList from '@components/dashboard/AssetList';
-import GlassContainer from '@components/GlassContainer';
-import { Grid, Typography, CircularProgress, Container } from '@mui/material';
+import { Grid, Typography, CircularProgress, Container, Paper } from '@mui/material';
 import React, { useState, useEffect, } from 'react';
 import { VictoryArea, VictoryContainer, VictoryPie } from 'victory';
 import axios from 'axios';
@@ -36,6 +35,12 @@ const historicData = [
 { x: 4, y: 4 },
 { x: 5, y: 6}
 ];
+
+const paperStyle = {
+	p: 3,
+	borderRadius: 2,
+	height: '100%'
+}
 
 const wantedHoldingData = tokenDataArray(rawData2);
 // console.log(wantedHoldingData);
@@ -195,12 +200,12 @@ const Dashboard = () => {
 
 		<Container maxWidth='lg' sx={{ mx: 'auto' }}>
 		<Typography variant="p" sx={{ textAlign: 'center', fontSize: '0.9rem' }}>
-			* Please note, some dashboard functionality is not completed yet. You will be able to view NFTs up-close, and see price history once we get back to this part of the project. 
+			* Please note, some dashboard functionality is not completed yet. 
 		</Typography>
-			<Grid container spacing={1} alignItems="stretch" sx={{ pt: 4 }}>
+			<Grid container spacing={3} alignItems="stretch" sx={{ pt: 4 }}>
 
 				<Grid item xs={12} md={6}>
-					<GlassContainer>
+					<Paper sx={paperStyle}>
 					<Typography variant='h4'>Wallet Holdings</Typography>
 						{loading ? (
 								<>
@@ -230,11 +235,11 @@ const Dashboard = () => {
 							)
 						}
 						
-					</GlassContainer>
+					</Paper>
 				</Grid>
 				
 				<Grid item xs={12} md={6}>
-					<GlassContainer>
+					<Paper sx={paperStyle}>
 					<Typography variant='h4'>Portfolio History</Typography>
 						{loading ? (
 								<>
@@ -259,7 +264,7 @@ const Dashboard = () => {
 							</>
 								)
 							}
-					</GlassContainer>
+					</Paper>
 				</Grid>
 
 				{loading ? (
@@ -270,21 +275,21 @@ const Dashboard = () => {
 							(
 								<>
 				<Grid item xs={12} md={4}>
-					<GlassContainer>
+					<Paper sx={paperStyle}>
 						<AssetList assets={assetList} title='Assets' />
-					</GlassContainer>
+					</Paper>
 				</Grid>
 				
 				<Grid item xs={12} md={4}>
-					<GlassContainer>
+					<Paper sx={paperStyle}>
 						<AssetList assets={imgNftList} title='Image NFTs' type='NFT' />
-					</GlassContainer>
+					</Paper>
 				</Grid>
 
 				<Grid item xs={12} md={4}>
-					<GlassContainer>
+					<Paper sx={paperStyle}>
 						<AssetList assets={audNftList} title='Audio NFTs' type='NFT' />
-					</GlassContainer>
+					</Paper>
 				</Grid>
 				</>
 								)
