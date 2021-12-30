@@ -98,7 +98,8 @@ try:
   else:
     validCurrencies    = {
       'seedsale' : '8eb9a97f4c8e5409ade9a13625f2bbb9f8b081e51d37f623233444743fae8321', # xeed1k
-      'sigusd'   : '8eb9a97f4c8e5409ade9a13625f2bbb9f8b081e51d37f623233444743fae8321', # xeed1k
+      # 'sigusd'   : '8eb9a97f4c8e5409ade9a13625f2bbb9f8b081e51d37f623233444743fae8321', # xeed1k
+      'sigusd'   : '29275cf36ffae29ed186df55ac6f8d47b367fe8e398721e200acb71bc32b10a0', # xyzpad
       'ergopad'  : 'cc3c5dc01bb4b2a05475b2d9a5b4202ed235f7182b46677ed8f40358333b92bb', # xerg10M / TESTING, strategic token
       # 'sigusd'   : '03faf2cb329f2e90d6d23b58d91bbb6c046aa143261cc21f52fbe2824bfcbf04', # official SigUSD (SigmaUSD - V2)
       # 'ergopad'  : 'cc3c5dc01bb4b2a05475b2d9a5b4202ed235f7182b46677ed8f40358333b92bb', # TODO: need official ergopad token
@@ -112,7 +113,8 @@ try:
     CFG.assembler      = 'http://38.15.40.14:8888'
     CFG.ergopadApiKey  = 'headerbasketcandyjourney'
     nodeWallet         = Wallet('9gibNzudNny7MtB725qGM3Pqftho1SMpQJ2GYLYRDDAftMaC285') # contains ergopad tokens (xerg10M)
-    buyerWallet        = Wallet('9f2sfNnZDzwFGjFRqLGtPQYu94cVh3TcE2HmHksvZeg1PY5tGrZ') # simulate buyer / seed tokens
+    # buyerWallet        = Wallet('9f2sfNnZDzwFGjFRqLGtPQYu94cVh3TcE2HmHksvZeg1PY5tGrZ') # simulate buyer / seed tokens
+    buyerWallet        = Wallet('9iLSsvi2zobapQmi7tXVK4mnrbQwpK3oTfPcCpF9n7J2DQVpxq2') # simulate buyer / seed tokens
 
   CFG.ergopadTokenId = validCurrencies['ergopad'] 
   CFG.seedTokenId    = validCurrencies['seedsale']
@@ -285,31 +287,32 @@ def getErgoscript(name, params={}):
       # params['nodeWallet'] = '9gibNzudNny7MtB725qGM3Pqftho1SMpQJ2GYLYRDDAftMaC285'
       # params['timestamp'] = 1000000
       script = f"""{{
-        val buyerPK = PK("{params['buyerWallet']}")
-        val sellerPK = PK("{params['nodeWallet']}")
-        val total = INPUTS.fold(0L, {{(x:Long, b:Box) => x + b.value}}) - 2000000L
-        val tokenId = fromBase64("{params['purchaseToken']}")
+        val buyerPK     = PK("{params['buyerWallet']}")
+        val sellerPK    = PK("{params['nodeWallet']}")
+        val total       = INPUTS.fold(0L, {{(x:Long, b:Box) => x + b.value}}) - 2000000L
+        val tokenId     = fromBase64("{params['purchaseToken']}")
         val tokenAmount = {params['purchaseTokenAmount']}L 
-        val timeStamp = {params['timestamp']}L
+        val timeStamp   = {params['timestamp']}L
 
         val sellerOutput = {{
-          // OUTPUTS(0).propositionBytes == sellerPK.propBytes  
-          // OUTPUTS(0).tokens(0)._2 == {params['purchaseTokenAmount']}L &&
-          OUTPUTS(0).tokens(0)._1 == tokenId
+          OUTPUTS(0).propositionBytes == sellerPK.propBytes &&
+          OUTPUTS(0).tokens(0)._2 == tokenAmount &&
+          OUTPUTS(0).tokens(0)._1 == tokenId // sigusd
         }}
 
         val returnFunds = {{
-          INPUTS(0).propositionBytes == buyerPK.propBytes
-          // OUTPUTS(0).value >= total
-          // OUTPUTS.size == 2
+          OUTPUTS(1).propositionBytes == buyerPK.propBytes &&
+          // OUTPUTS(1).value >= total &&
+          // OUTPUTS(1).tokens(0)._1 == tokenId && // ergopad
+          OUTPUTS.size == 2
         }}
         
         val isAlwaysTrue = {{
           1 == 1
         }}
 
-        sigmaProp((returnFunds || sellerOutput || isAlwaysTrue) && HEIGHT < timeStamp)
-        // sigmaProp((returnFunds || sellerOutput) && HEIGHT < timeStamp)
+        // sigmaProp((returnFunds || sellerOutput || isAlwaysTrue) && HEIGHT < timeStamp)
+        sigmaProp((returnFunds || sellerOutput) && HEIGHT < timeStamp)
       }}"""
 
     if name == 'sale':
@@ -474,6 +477,54 @@ def redeemToken(box:str):
     logging.error(f'{myself()}: {e}')
     return {'status': 'error', 'def': myself(), 'message': e}
 
+@r.get("/allowance/{wallet}", name="blockchain:whitelist")
+def allowance(wallet:str):
+  # round not used for now
+  logging.info(f'Strategic sigusd remaining for: {wallet}...')
+
+  # check whitelist
+  whitelist = {}
+  blacklist = {}
+
+  # avoid catch if file DNE
+  try: os.stat(f'blacklist.tsv')
+  except: 
+    f = open(f'blacklist.tsv', 'w') # touch
+    f.close()
+    pass
+
+  try:
+    with open(f'whitelist.csv') as f:
+      wl = f.readlines()
+      for w in wl: 
+        whitelist[w.split(',')[2].rstrip()] = {
+          'amount': float(w.split(',')[0]),
+          # 'tokens': round(float(w.split(',')[1]))
+        }
+
+    with open(f'blacklist.tsv') as f:
+      bl = f.readlines()
+      for l in bl:
+        col = l.split('\t')
+        blacklist[col[0]] = {
+          'timeStamp': col[1],
+          'tokenAmount': col[2]
+        }
+
+  except Exception as e:
+    logging.error(f'{myself()}: {e}')
+
+  if wallet in blacklist:
+    logging.info(f'sigusd: 0 (blacklisted)')
+    return {'wallet': wallet, 'sigusd': 0.0, 'message': 'blacklisted'}
+
+  if wallet in whitelist:
+    logging.info(f"sigusd: {whitelist[wallet]['amount']}")
+    return {'wallet': wallet, 'sigusd': whitelist[wallet]['amount'], 'message': 'remaining sigusd'}
+
+  logging.info(f'sigusd: 0 (not found)')
+  return {'wallet': wallet, 'sigusd': 0.0, 'message': 'not found'}
+
 # purchase tokens
 @r.post("/purchase/", name="blockchain:purchaseToken")
 async def purchaseToken(tokenPurchase: TokenPurchase):  
@@ -517,8 +568,6 @@ async def purchaseToken(tokenPurchase: TokenPurchase):
   ergopadDecimals = 10**ergopadDecimals
   sigusdDecimals = 10**sigusdDecimals
 
-  
-
   # handle purchase
   try:
     buyerWallet        = Wallet(tokenPurchase.wallet)
@@ -541,13 +590,13 @@ async def purchaseToken(tokenPurchase: TokenPurchase):
     # txBoxTotal_nerg    = txFee_nerg*2 # 1 box with strategic, other with sigusd // *(1+vestingPeriods) # per vesting box + output box
 
     # if sending sigusd, isToken=True
-    strategic2Sigusd = .02
+    strategic2Sigusd = .0002 # !! TODO: CHANGE ME
     coinAmount_nerg  = int(amount/price*nergsPerErg) # passed as erg, don't convert to sigusd // int(amount/price*nergsPerErg) # sigusd/price, 1 amount@5.3 = .188679 ergs
     tokenAmount      = int(amount/strategic2Sigusd)*ergopadDecimals # strategic round .02 sigusd per token (50 strategic tokens per sigusd)
     if isToken:
       coinAmount_nerg  = txMin_nerg # min per box
       #tokenAmount      = int(amount/strategic2Sigusd)*ergopadDecimals # amount given in ergs, so convert to sigusd, then to strategic
-    sendAmount_nerg    = coinAmount_nerg+txMin_nerg+txFee_nerg # 2 output boxes
+    sendAmount_nerg    = coinAmount_nerg+txMin_nerg # +txFee_nerg
 
     if isToken:
       logging.info(f'using sigusd, amount={tokenAmount/ergopadDecimals:.2f} at price={price} for {amount}sigusd')
@@ -722,7 +771,9 @@ async def purchaseToken(tokenPurchase: TokenPurchase):
         },
     }
     
-    logging.info(f'request: {request}')
+    # don't bonk if can't jsonify request
+    try: logging.info(f'request: {json.dumps(request)}')
+    except: pass
 
     # logging.info(f'build request: {request}')
     # logging.info(f'\n::REQUEST::::::::::::::::::\n{json.dumps(request)}\n::REQUEST::::::::::::::::::\n')

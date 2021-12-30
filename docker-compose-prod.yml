@@ -122,7 +122,7 @@ services:
     image: openjdk
     volumes:
       - ./ergonode/:/opt/ergo # jar/conf
-      - /ergo/mainnet/.ergo:/opt/ergo/.ergo # blockchain
+      - /ergo/mainnet/:/ergo # blockchain
     ports:
       - ${ERGONODE_PORT}:9053
     working_dir: /opt/ergo
@@ -139,7 +139,7 @@ services:
     image: openjdk
     volumes:
       - ./ergonode/:/opt/ergo # jar/conf
-      - /ergo/ergonode2/.ergo:/opt/ergo/.ergo # blockchain
+      - /ergo/ergonode2/:/ergo # blockchain
     ports:
       - ${ERGONODE2_PORT}:9054
     working_dir: /opt/ergo
