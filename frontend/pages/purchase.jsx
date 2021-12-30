@@ -26,7 +26,6 @@ import CardContent from '@mui/material/CardContent';
 import ToggleButton from '@mui/material/ToggleButton';
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import useMediaQuery from '@mui/material/useMediaQuery';
-import whitelist from './whitelist.json'
 
 const Alert = forwardRef(function Alert(props, ref) {
 	return <MuiAlert elevation={6} ref={ref} variant="filled" {...props} />;
@@ -96,11 +95,13 @@ const Purchase = () => {
     const [alignment, setAlignment] = useState('sigusd');
 
     const handleCurrencyChange = (e, newAlignment) => {
-        setAlignment(newAlignment);
-        updateFormData({
-            ...formData,
-            currency: e.target.value
-        });
+        if (newAlignment !== null) {
+            setAlignment(newAlignment);
+            updateFormData({
+                ...formData,
+                currency: e.target.value
+            });
+        }
     };
 
     const { wallet } = useWallet()
@@ -121,33 +122,32 @@ const Purchase = () => {
     }
 
     useEffect(() => {
-        let approved = false
-
-        Object.entries(whitelist).forEach(entry => {
-            const [key, value] = entry;
-            if (value.wallet == wallet) {
-                setSigusdAllowed(value.sigusd)
-                approved = true
-            }
-        })
-
-        if (approved) {
-            setFormErrors({
-                ...formErrors,
-                wallet: false
+        axios.get(`${process.env.API_URL}/blockchain/allowance/${wallet}`)
+            .then(res => {
+                console.log(res);
+                console.log(res.data);
+                if (res.data.message === 'remaining sigusd') {
+                    setSigusdAllowed(res.data.sigusd)
+                    setFormErrors({
+                        ...formErrors,
+                        wallet: false
+                    });
+                    updateFormData({
+                        ...formData,
+                        wallet: wallet
+                    });
+                }
+                else {
+                    setFormErrors({
+                        ...formErrors,
+                        wallet: true
+                    });
+                    setSigusdAllowed(0.0)
+                }
+            })
+            .catch((err) => {
+                console.log(err.response.data)
             });
-            updateFormData({
-                ...formData,
-                wallet: wallet
-            });
-        }
-        else {
-            setFormErrors({
-                ...formErrors,
-                wallet: true
-            });
-            setSigusdAllowed(0.0)
-        }
     }, [wallet])
 
     useEffect(() => {
@@ -263,8 +263,15 @@ const Purchase = () => {
                 })
             })
             .catch((err) => {
-                // snackbar for error message
-				setErrorMessage('ERROR POSTING: ' + err)
+                if (err.response?.status) {
+                    setErrorMessage('ERROR ' + err.response?.status + ' ' + err.response?.data?.message)
+                }
+                else {
+                    setErrorMessage('ERROR: Network error')
+                }
+                
+                setOpenError(true)
+                console.log(err)
                 setLoading(false)
             }); 
             // setLoading(false)
@@ -336,8 +343,8 @@ const Purchase = () => {
                         variant="filled"
                         sx={{ mb: 3 }}
                         onChange={handleChange}
-                        error={formErrors.sigusd}
-                        helperText={formErrors.sigusd && 'Must be a value below your approved amount'}
+                        error={formErrors.amount}
+                        helperText={formErrors.amount && 'Must be a value below your approved amount'}
                     />
 
                     <Typography variant="p" sx={{ fontSize: '1rem', mb: 1 }}>Select which currency you would like to send: </Typography>
