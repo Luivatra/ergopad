@@ -100,6 +100,7 @@ try:
       'seedsale' : '8eb9a97f4c8e5409ade9a13625f2bbb9f8b081e51d37f623233444743fae8321', # xeed1k
       # 'sigusd'   : '8eb9a97f4c8e5409ade9a13625f2bbb9f8b081e51d37f623233444743fae8321', # xeed1k
       'sigusd'   : '29275cf36ffae29ed186df55ac6f8d47b367fe8e398721e200acb71bc32b10a0', # xyzpad
+      # 'sigusd'   : '191dd93523e052d9be49680508f675f82e461ef5452d60143212beb42b7f62a8',
       'ergopad'  : 'cc3c5dc01bb4b2a05475b2d9a5b4202ed235f7182b46677ed8f40358333b92bb', # xerg10M / TESTING, strategic token
       # 'sigusd'   : '03faf2cb329f2e90d6d23b58d91bbb6c046aa143261cc21f52fbe2824bfcbf04', # official SigUSD (SigmaUSD - V2)
       # 'ergopad'  : 'cc3c5dc01bb4b2a05475b2d9a5b4202ed235f7182b46677ed8f40358333b92bb', # TODO: need official ergopad token
@@ -171,8 +172,8 @@ async def getInfo():
     return nodeInfo
 
   except Exception as e:
-    logging.error(f'{myself()}: {e}')
-    return {'status': 'error', 'def': myself(), 'message': e}
+    logging.error(f'ERR:{myself()}: invalid blockchain info ({e})')
+    return JSONResponse(status_code=status.HTTP_400_BAD_REQUEST, content=f'invalid blockchain info')
 
 # info about token
 @r.get("/tokenInfo/{tokenId}", name="blockchain:tokenInfo")
@@ -182,8 +183,8 @@ def getTokenInfo(tokenId):
     tkn = requests.get(f'{CFG.explorer}/tokens/{tokenId}')
     return tkn.json()
   except Exception as e:
-    logging.error(f'{myself()}: {e}')
-    return {'status': 'error', 'def': myself(), 'message': e}
+    logging.error(f'ERR:{myself()}: invalid token request ({e})')
+    return JSONResponse(status_code=status.HTTP_400_BAD_REQUEST, content=f'invalid token request')
 
 # assember follow info
 @r.get("/followInfo/{followId}", name="blockchain:followInfo")
@@ -193,8 +194,8 @@ def followInfo(followId):
     return res.json()
     
   except Exception as e:
-    logging.error(f'{myself()}: {e}')
-    return {'status': 'error', 'def': myself(), 'message': e}
+    logging.error(f'ERR:{myself()}: invalid assembly follow ({e})')
+    return JSONResponse(status_code=status.HTTP_400_BAD_REQUEST, content=f'invalid assembly follow')
 
 # find unspent boxes with tokens
 @r.get("/unspentTokens", name="blockchain:unspentTokens")
@@ -240,8 +241,8 @@ def getBoxesWithUnspentTokens(nErgAmount=-1, tokenId=CFG.ergopadTokenId, tokenAm
     return ergopadTokenBoxes
 
   except Exception as e:
-    logging.error(f'{myself()}: {e}')
-    return {'status': 'error', 'def': myself(), 'message': e}
+    logging.error(f'ERR:{myself()}: unable to find unspent tokens ({e})')
+    return JSONResponse(status_code=status.HTTP_400_BAD_REQUEST, content=f'unable to find unspent tokens')
 
 # ergoscripts
 @r.get("/script/{name}", name="blockchain:getErgoscript")
@@ -315,6 +316,10 @@ def getErgoscript(name, params={}):
         sigmaProp((returnFunds || sellerOutput) && HEIGHT < timeStamp)
       }}"""
 
+    #       OUTPUTS.filter({{(box: Box) => box.propositionBytes == SELF.R4[Coll[Byte]].get && 
+    #                                                         box.tokens.size==1 &&
+    #                                                         box.tokens(0)._1 == SELF.tokens(0)._1}})
+    #                                   .fold(0L, {{(z: Long,box: Box) => z+box.tokens(0)._2}})
     if name == 'sale':
       script = f"""{{
         val buyerPK = PK("{params['buyerWallet']}")
@@ -323,6 +328,7 @@ def getErgoscript(name, params={}):
         val saleTokenAmount = {params['saleTokenAmount']}L
         val buyTokenId = fromBase64("{params['buyTokenId']}")
         val buyTokenAmount = {params['purchaseTokenAmount']}L
+        val timestamp = {params['timestamp']}
 
         val sellerOutput = {{
           OUTPUTS(0).propositionBytes == sellerPK.propBytes &&
@@ -333,13 +339,14 @@ def getErgoscript(name, params={}):
         val buyerOutput = OUTPUTS(1).propositionBytes == buyerPK.propBytes && 
           OUTPUTS(1).tokens(0)._2 == saleTokenAmount && 
           OUTPUTS(1).tokens(0)._1 == saleTokenId
+          // INPUTS(0).tokens(0)._1 == buyTokenId
         
         val returnFunds = {{
           val total = INPUTS.fold(0L, {{(x:Long, b:Box) => x + b.value}}) - 2000000
           OUTPUTS(0).value >= total && OUTPUTS(0).propositionBytes == buyerPK.propBytes && OUTPUTS.size == 2
         }}
-        
-        sigmaProp((returnFunds || (buyerOutput && sellerOutput)) && HEIGHT < {params['timestamp']})
+
+        sigmaProp((returnFunds || (buyerOutput && sellerOutput)) && HEIGHT < timestamp)
       }}"""
 
     if name == 'vestingLock':
@@ -382,8 +389,8 @@ def getErgoscript(name, params={}):
     return smartContract
   
   except Exception as e:
-    logging.error(f'{myself()}: {e}')
-    return {'status': 'error', 'def': myself(), 'message': e}
+    logging.error(f'ERR:{myself()}: unable to build script ({e})')
+    return JSONResponse(status_code=status.HTTP_400_BAD_REQUEST, content=f'unable to build script')
 
 # find vesting/vested tokens
 @r.get("/vesting/{wallet}", name="blockchain:findVestingTokens")
@@ -434,8 +441,8 @@ def findVestingTokens(wallet:str):
     # serialize boxes and find wallets in R4
 
   except Exception as e:
-    logging.error(f'{myself()}: {e}')
-    return {'status': 'error', 'def': myself(), 'message': e}
+    logging.error(f'ERR:{myself()}: unable to build vesting request ({e})')
+    return JSONResponse(status_code=status.HTTP_400_BAD_REQUEST, content=f'unable to build vesting request')
 
 # redeem/disburse tokens after lock
 @r.get("/redeem/{box}", name="blockchain:redeem")
@@ -482,8 +489,8 @@ def redeemToken(box:str):
     })
   
   except Exception as e:
-    logging.error(f'{myself()}: {e}')
-    return {'status': 'error', 'def': myself(), 'message': e}
+    logging.error(f'ERR:{myself()}: unable to redeem ({e})')
+    return JSONResponse(status_code=status.HTTP_400_BAD_REQUEST, content=f'unable to redeem')
 
 @r.get("/allowance/{wallet}", name="blockchain:whitelist")
 def allowance(wallet:str):
@@ -523,8 +530,8 @@ def allowance(wallet:str):
     logging.error(f'{myself()}: {e}')
 
   if wallet in blacklist:
-    logging.info(f'sigusd: 0 (blacklisted)')
-    return {'wallet': wallet, 'sigusd': 0.0, 'message': 'blacklisted'}
+    logging.error(f'ERR:{myself()}: blacklisted ({e})')
+    return JSONResponse(status_code=status.HTTP_400_BAD_REQUEST, content=f'blacklisted')
 
   if wallet in whitelist:
     logging.info(f"sigusd: {whitelist[wallet]['amount']}")
@@ -598,13 +605,13 @@ async def purchaseToken(tokenPurchase: TokenPurchase):
     # txBoxTotal_nerg    = txFee_nerg*2 # 1 box with strategic, other with sigusd // *(1+vestingPeriods) # per vesting box + output box
 
     # if sending sigusd, isToken=True
-    strategic2Sigusd = .0002 # !! TODO: CHANGE ME
+    strategic2Sigusd = .02
     coinAmount_nerg  = int(amount/price*nergsPerErg) # passed as erg, don't convert to sigusd // int(amount/price*nergsPerErg) # sigusd/price, 1 amount@5.3 = .188679 ergs
     tokenAmount      = int(amount/strategic2Sigusd)*ergopadDecimals # strategic round .02 sigusd per token (50 strategic tokens per sigusd)
     if isToken:
-      coinAmount_nerg  = txMin_nerg # min per box
+      coinAmount_nerg  = txFee_nerg # min per box
       #tokenAmount      = int(amount/strategic2Sigusd)*ergopadDecimals # amount given in ergs, so convert to sigusd, then to strategic
-    sendAmount_nerg    = coinAmount_nerg+txMin_nerg # +txFee_nerg
+    sendAmount_nerg    = 10000000 # coinAmount_nerg+txMin_nerg # +txFee_nerg
 
     if isToken:
       logging.info(f'using sigusd, amount={tokenAmount/ergopadDecimals:.2f} at price={price} for {amount}sigusd')
@@ -640,9 +647,9 @@ async def purchaseToken(tokenPurchase: TokenPurchase):
             'tokenAmount': row[2]
           }
 
-    except:
-      logging.error(f'ERR: reading whitelist')
-      return {'status': 'error', 'message': f'ERR: reading whitelist'}
+    except Exception as e:
+      logging.error(f'ERR:{myself()}: reading whitelist ({e})')
+      return JSONResponse(status_code=status.HTTP_400_BAD_REQUEST, content=f'invalid whitelist/blacklist')
 
     # make sure buyer is whitelisted
     if buyerWallet.address not in whitelist:
@@ -664,7 +671,7 @@ async def purchaseToken(tokenPurchase: TokenPurchase):
     startWhen = {'erg': sendAmount_nerg}
     outBox = [{
         'address': nodeWallet.address, # nodeWallet.bs64(),
-        'value': coinAmount_nerg
+        'value': sendAmount_nerg # coinAmount_nerg
     }]
     if isToken:
       outBox[0]['assets'] = [{
@@ -716,7 +723,7 @@ async def purchaseToken(tokenPurchase: TokenPurchase):
       r4 = '0e'+hex(len(bytearray.fromhex(buyerWallet.ergoTree())))[2:]+buyerWallet.ergoTree() # convert to bytearray
       outBox.append({
         'address': buyerWallet.address,
-        'value': txMin_nerg,
+        'value': txFee_nerg,
         'registers': {
           'R4': r4
         },
@@ -807,17 +814,17 @@ async def purchaseToken(tokenPurchase: TokenPurchase):
         'status'        : 'success', 
         'message'       : message,
         'total'         : sendAmount_nerg/nergsPerErg,
-        'coins'         : coinAmount_nerg/nergsPerErg,
+        # 'coins'         : coinAmount_nerg/nergsPerErg,
         # 'boxes'         : txBoxTotal_nerg/nergsPerErg,
-        'fees'          : txFee_nerg/nergsPerErg,
+        # 'fees'          : txFee_nerg/nergsPerErg,
         'assembler'     : json.dumps(fin.json()),
         'smartContract' : scPurchase, 
         'request'       : json.dumps(request),
     })
 
   except Exception as e:
-    logging.error(f'{myself()}: {e}')
-    return {'status': 'error', 'def': myself(), 'message': e}
+    logging.error(f'ERR:{myself()}: building request ({e})')
+    return JSONResponse(status_code=status.HTTP_400_BAD_REQUEST, content=f'building request')
 
 # TEST - send payment from test wallet
 @r.get("/sendPayment/{address}/{nergs}/{tokens}", name="blockchain:sendPayment")
@@ -865,8 +872,8 @@ def sendPayment(address, nergs, tokens):
     return {'status': 'success', 'detail': f'payment: {pay.json()}'}
 
   except Exception as e:
-    logging.error(f'{myself()}: {e}')
-    return {'status': 'error', 'def': myself(), 'message': e}
+    logging.error(f'ERR:{myself()}: unable to send payment ({e})')
+    return JSONResponse(status_code=status.HTTP_400_BAD_REQUEST, content=f'unable to send payment')
 
 ### MAIN
 if __name__ == '__main__':
