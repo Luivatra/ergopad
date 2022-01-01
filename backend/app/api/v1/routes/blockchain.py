@@ -322,28 +322,31 @@ def getErgoscript(name, params={}):
     #                                   .fold(0L, {{(z: Long,box: Box) => z+box.tokens(0)._2}})
     if name == 'sale':
       script = f"""{{
-        val buyerPK = PK("{params['buyerWallet']}")
-        val sellerPK = PK("{params['nodeWallet']}")
-        val saleTokenId = fromBase64("{params['saleTokenId']}")
-        val saleTokenAmount = {params['saleTokenAmount']}L
-        val buyTokenId = fromBase64("{params['buyTokenId']}")
-        val buyTokenAmount = {params['purchaseTokenAmount']}L
-        val timestamp = {params['timestamp']}
+        val buyerPK             = PK("{params['buyerWallet']}")
+        val sellerPK            = PK("{params['nodeWallet']}")
+        val saleTokenId         = fromBase64("{params['saleTokenId']}")
+        val purchaseTokenId     = fromBase64("{params['purchaseTokenId']}")
+        val saleTokenAmount     = {params['saleTokenAmount']}L
+        val purchaseTokenAmount = {params['purchaseTokenAmount']}L
+        val timestamp           = {params['timestamp']}
+        val total               = INPUTS.fold(0L, {{(x:Long, b:Box) => x + b.value}}) - 2000000
 
         val sellerOutput = {{
           OUTPUTS(0).propositionBytes == sellerPK.propBytes &&
-            ((buyTokenId.size == 0 && OUTPUTS(0).value == buyTokenAmount) ||
-              (OUTPUTS(0).tokens(0)._2 == buyTokenAmount && OUTPUTS(0).tokens(0)._1 == buyTokenId))
+          ((purchaseTokenId.size == 0 && OUTPUTS(0).value == purchaseTokenAmount) ||
+           (OUTPUTS(0).tokens(0)._2 == purchaseTokenAmount && OUTPUTS(0).tokens(0)._1 == purchaseTokenId))
         }}
         
-        val buyerOutput = OUTPUTS(1).propositionBytes == buyerPK.propBytes && 
+        val buyerOutput = {{
+          OUTPUTS(1).propositionBytes == buyerPK.propBytes && 
           OUTPUTS(1).tokens(0)._2 == saleTokenAmount && 
           OUTPUTS(1).tokens(0)._1 == saleTokenId
-          // INPUTS(0).tokens(0)._1 == buyTokenId
+        }}
         
         val returnFunds = {{
-          val total = INPUTS.fold(0L, {{(x:Long, b:Box) => x + b.value}}) - 2000000
-          OUTPUTS(0).value >= total && OUTPUTS(0).propositionBytes == buyerPK.propBytes && OUTPUTS.size == 2
+          OUTPUTS(0).value >= total && 
+          OUTPUTS(0).propositionBytes == buyerPK.propBytes && 
+          OUTPUTS.size == 2
         }}
 
         sigmaProp((returnFunds || (buyerOutput && sellerOutput)) && HEIGHT < timestamp)
@@ -602,16 +605,16 @@ async def purchaseToken(tokenPurchase: TokenPurchase):
     nergsPerErg        = 1000000000
     txFee_nerg         = int(.001*nergsPerErg)
     txMin_nerg         = int(.01*nergsPerErg)
-    # txBoxTotal_nerg    = txFee_nerg*2 # 1 box with strategic, other with sigusd // *(1+vestingPeriods) # per vesting box + output box
 
-    # if sending sigusd, isToken=True
-    strategic2Sigusd = .02
-    coinAmount_nerg  = int(amount/price*nergsPerErg) # passed as erg, don't convert to sigusd // int(amount/price*nergsPerErg) # sigusd/price, 1 amount@5.3 = .188679 ergs
-    tokenAmount      = int(amount/strategic2Sigusd)*ergopadDecimals # strategic round .02 sigusd per token (50 strategic tokens per sigusd)
+    # if sending sigusd, assert(isToken)=True
+    strategic2Sigusd   = (.02, .0002)[DEBUG] # strategic round .02 sigusd per token (50 strategic tokens per sigusd)
+    coinAmount_nerg    = int(amount/price*nergsPerErg) 
+    tokenAmount        = int(amount/price/strategic2Sigusd)*ergopadDecimals 
+    sendAmount_nerg    = coinAmount_nerg+2*txFee_nerg
     if isToken:
       coinAmount_nerg  = txFee_nerg # min per box
-      #tokenAmount      = int(amount/strategic2Sigusd)*ergopadDecimals # amount given in ergs, so convert to sigusd, then to strategic
-    sendAmount_nerg    = 10000000 # coinAmount_nerg+txMin_nerg # +txFee_nerg
+      tokenAmount      = int(amount/strategic2Sigusd)*ergopadDecimals # amount given in ergs, so convert to sigusd, then to strategic
+      sendAmount_nerg  = 10000000 # coinAmount_nerg+txMin_nerg # +txFee_nerg
 
     if isToken:
       logging.info(f'using sigusd, amount={tokenAmount/ergopadDecimals:.2f} at price={price} for {amount}sigusd')
@@ -755,17 +758,20 @@ async def purchaseToken(tokenPurchase: TokenPurchase):
       scPurchase = getErgoscript('walletLock', params=params)
       scPurchase = getErgoscript('walletLock', params=params)
     else:
-      purchaseTokenAmount = int(amount*sigusdDecimals) if isToken else coinAmount_nerg
-      buyTokenId =b64encode(bytes.fromhex(validCurrencies['sigusd'])).decode('utf-8') if isToken else ""
       params = {
-      'nodeWallet': nodeWallet.address,
-      'buyerWallet': buyerWallet.address,
-      'timestamp': int(time()),      
-      'buyTokenId': buyTokenId,
-      'saleTokenId': b64encode(bytes.fromhex(validCurrencies['ergopad'])).decode('utf-8'),
-      'purchaseTokenAmount': purchaseTokenAmount,
-      'saleTokenAmount': tokenAmount
+        'nodeWallet': nodeWallet.address,
+        'buyerWallet': buyerWallet.address,
+        'saleTokenId': b64encode(bytes.fromhex(validCurrencies['ergopad'])).decode('utf-8'),
+        'saleTokenAmount': tokenAmount,
+        'timestamp': int(time()),      
       }
+      if isToken:
+        params['purchaseTokenId'] = b64encode(bytes.fromhex(validCurrencies['sigusd'])).decode('utf-8')
+        params['purchaseTokenAmount'] = int(amount*sigusdDecimals)
+      else:
+        params['purchaseTokenId'] = ""
+        params['purchaseTokenAmount'] = sendAmount_nerg # coinAmount_nerg
+
       logging.info(f'params: {params}')
       scPurchase = getErgoscript('sale',params=params)
 
