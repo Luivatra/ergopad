@@ -59,7 +59,8 @@ st = time() # stopwatch
 
 #region LOGGING
 import logging
-logging.basicConfig(format='{asctime}:{name:>8s}:{levelname:<8s}::{message}', style='{')
+levelname = (logging.WARN, logging.DEBUG)[DEBUG]
+logging.basicConfig(format='{asctime}:{name:>8s}:{levelname:<8s}::{message}', style='{', levelname=levelname)
 
 import inspect
 myself = lambda: inspect.stack()[1][3]
@@ -502,14 +503,7 @@ def allowance(wallet:str):
 
   # check whitelist
   whitelist = {}
-  blacklist = {}
-
-  # avoid catch if file DNE
-  try: os.stat(f'blacklist.tsv')
-  except: 
-    f = open(f'blacklist.tsv', 'w') # touch
-    f.close()
-    pass
+  remaining = {}
 
   try:
     with open(f'whitelist.csv') as f:
@@ -520,25 +514,35 @@ def allowance(wallet:str):
           # 'tokens': round(float(w.split(',')[1]))
         }
 
-    with open(f'blacklist.tsv') as f:
-      bl = f.readlines()
-      for l in bl:
-        col = l.split('\t')
-        blacklist[col[0]] = {
-          'timeStamp': col[1],
-          'tokenAmount': col[2]
-        }
+    with open(f'remaining.tsv') as f:
+      for row in f.readlines():
+        try:
+          r = row.rstrip().split('\t')
+          remaining[r[0]] = {
+            'total': float(r[1]),
+            'spent': float(r[2]),
+            'remaining': float(r[3]),
+          }
+        except:
+          if row != None:
+            logging.error(f'issue in remaining.tsv, line: {row}')
+          pass
 
   except Exception as e:
     logging.error(f'{myself()}: {e}')
 
-  if wallet in blacklist:
-    logging.error(f'ERR:{myself()}: blacklisted ({e})')
-    return JSONResponse(status_code=status.HTTP_400_BAD_REQUEST, content=f'blacklisted')
+  if wallet in remaining:
+    logging.debug(f'WALLET::{wallet}')
+    if remaining[wallet]['remaining'] < 1:
+      logging.error(f'ERR:{myself()}: blacklisted ({wallet})')
+      # return JSONResponse(status_code=status.HTTP_400_BAD_REQUEST, content=f'blacklisted')
 
   if wallet in whitelist:
+    r = whitelist[wallet]['amount']
+    if wallet in remaining:
+      r = remaining[wallet]['remaining']
     logging.info(f"sigusd: {whitelist[wallet]['amount']}")
-    return {'wallet': wallet, 'sigusd': whitelist[wallet]['amount'], 'message': 'remaining sigusd'}
+    return {'wallet': wallet, 'sigusd': r, 'message': 'remaining sigusd'}
 
   logging.info(f'sigusd: 0 (not found)')
   return {'wallet': wallet, 'sigusd': 0.0, 'message': 'not found'}
@@ -608,29 +612,18 @@ async def purchaseToken(tokenPurchase: TokenPurchase):
 
     # if sending sigusd, assert(isToken)=True
     strategic2Sigusd   = (.02, .0002)[DEBUG] # strategic round .02 sigusd per token (50 strategic tokens per sigusd)
+    tokenAmount        = int(amount/strategic2Sigusd)*ergopadDecimals 
     coinAmount_nerg    = int(amount/price*nergsPerErg) 
-    tokenAmount        = int(amount/price/strategic2Sigusd)*ergopadDecimals 
     sendAmount_nerg    = coinAmount_nerg+2*txFee_nerg
     if isToken:
       coinAmount_nerg  = txFee_nerg # min per box
-      tokenAmount      = int(amount/strategic2Sigusd)*ergopadDecimals # amount given in ergs, so convert to sigusd, then to strategic
       sendAmount_nerg  = 10000000 # coinAmount_nerg+txMin_nerg # +txFee_nerg
 
-    if isToken:
-      logging.info(f'using sigusd, amount={tokenAmount/ergopadDecimals:.2f} at price={price} for {amount}sigusd')
-    else:
-      logging.info(f'using ergs, amount={tokenAmount/ergopadDecimals:.2f} at price={price}, for {coinAmount_nerg/nergsPerErg:.2f}ergs ({coinAmount_nerg}nergs)')
+    logging.info(f'using {tokenName}, amount={tokenAmount/ergopadDecimals:.2f} at price={price} for {amount}sigusd')
 
     # check whitelist
     whitelist = {}
-    blacklist = {}
-
-    # avoid catch if file DNE
-    try: os.stat(f'blacklist.tsv')
-    except: 
-      f = open(f'blacklist.tsv', 'w') # touch
-      f.close()
-      pass
+    remaining = {}
 
     try:
       with open(f'whitelist.csv') as f:
@@ -640,15 +633,21 @@ async def purchaseToken(tokenPurchase: TokenPurchase):
             'amount': float(w.split(',')[0]),
             # 'tokens': round(float(w.split(',')[1]))
           }
+          # spentlist[w.split(',')[2].rstrip()] = 0
 
-      with open(f'blacklist.tsv') as f:
-        bl = f.readlines()
-        for l in bl:
-          row = l.split('\t')
-          blacklist[row[0]] = {
-            'timeStamp': row[1],
-            'tokenAmount': row[2]
-          }
+      with open(f'remaining.tsv') as f:
+        for row in f.readlines():
+          try:
+            r = row.split('\t')
+            remaining[r[0]] = {
+              'total': float(r[1]),
+              'spent': float(r[2]),
+              'remaining': float(r[3]),
+            }
+          except:
+            if row != None:
+              logging.error(f'issue in remaining.tsv, line: {row}')
+            pass
 
     except Exception as e:
       logging.error(f'ERR:{myself()}: reading whitelist ({e})')
@@ -658,13 +657,10 @@ async def purchaseToken(tokenPurchase: TokenPurchase):
     if buyerWallet.address not in whitelist:
       logging.debug(f'wallet not found in whitelist: {buyerWallet.address}')
       return JSONResponse(status_code=status.HTTP_406_NOT_ACCEPTABLE, content=f'wallet, {buyerWallet.address} invalid or not on whitelist')
-    elif buyerWallet.address in blacklist:
-      logging.debug(f'wallet found in whitelist, but already redeemed: {buyerWallet.address}')
-      return JSONResponse(status_code=status.HTTP_406_NOT_ACCEPTABLE, content=f'wallet, {buyerWallet.address} already redeemed seedtokens')
 
     # make sure buyer remains under amount limit
-    if amount > whitelist[buyerWallet.address]['amount']:
-      logging.debug(f'amount ({amount}) exceeds whitelist amount ({whitelist[buyerWallet.address]["amount"]})')
+    if amount > remaining[buyerWallet.address]['remaining']:
+      logging.debug(f"amount ({amount}) exceeds whitelist amount: {remaining[buyerWallet.address]['remaining']}/{remaining[buyerWallet.address]['total']}, including already spent amount: {remaining[buyerWallet.address]['spent']}")
       return JSONResponse(status_code=status.HTTP_406_NOT_ACCEPTABLE, content=f'wallet, {buyerWallet.address} may only request up to {whitelist[buyerWallet.address]["sigusd"]} sigusd')
 
     # 1 outbox per vesting period to lock spending until vesting complete
@@ -773,7 +769,7 @@ async def purchaseToken(tokenPurchase: TokenPurchase):
         params['purchaseTokenAmount'] = sendAmount_nerg # coinAmount_nerg
 
       logging.info(f'params: {params}')
-      scPurchase = getErgoscript('sale',params=params)
+      scPurchase = getErgoscript('sale', params=params)
 
     logging.info(f'scPurchase: {scPurchase}')
 
@@ -808,8 +804,8 @@ async def purchaseToken(tokenPurchase: TokenPurchase):
 
     # save buyer info
     with open(f'blacklist.tsv', 'a') as f:
-      # buyer, timestamp, tokens
-      f.write('\t'.join([buyerWallet.address, str(time()), str(tokenAmount)]))
+      # buyer, timestamp, sigusd, uuid
+      f.write('\t'.join([buyerWallet.address, str(time()), str(amount), str(id)])+'\n')
   
     logging.debug(f'::TOOK {time()-st:.2f}s')
     if isToken:
