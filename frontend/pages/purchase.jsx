@@ -34,7 +34,6 @@ const Alert = forwardRef(function Alert(props, ref) {
 const initialFormData = Object.freeze({
     wallet: '',
     amount: 0.0,
-    isToken: true,
     currency: 'sigusd'
   });
 
@@ -50,8 +49,9 @@ const initialCheckboxState = Object.freeze({
 })
 
 const initialSuccessMessageData = Object.freeze({
-    ergs: '',
-    address: ''
+    ergs: 0.0,
+    address: '',
+    sigusd: 0.0
 })
 
 function friendlyAddress(addr, tot = 13) {
@@ -126,7 +126,7 @@ const Purchase = () => {
             .then(res => {
                 console.log(res);
                 console.log(res.data);
-                if (res.data.message === 'remaining sigusd') {
+                if (res.data?.message === 'remaining sigusd') {
                     setSigusdAllowed(res.data.sigusd)
                     setFormErrors({
                         ...formErrors,
@@ -146,7 +146,7 @@ const Purchase = () => {
                 }
             })
             .catch((err) => {
-                console.log(err.response.data)
+                console.log(err?.response?.data)
             });
     }, [wallet])
 
@@ -254,12 +254,15 @@ const Purchase = () => {
                 console.log(res.data);
                 setLoading(false)
 
+
+
                 // modal for success message
 				setOpenSuccess(true)
                 setSuccessMessageData({
                     ...successMessageData,
-                    ergs: res.data.ergs,
-                    address: res.data.smartContract
+                    ergs: res.data.total,
+                    address: res.data.smartContract,
+                    sigusd: (formData.currency === 'sigusd') ? formData.amount : 0.0
                 })
             })
             .catch((err) => {
@@ -482,6 +485,14 @@ const Purchase = () => {
                             } variant="span" sx={{ color: 'text.primary' }}>
                                 {successMessageData.ergs} Erg
                             </Typography>
+                            {(successMessageData.sigusd > 0.0) && 
+                            <>{' '}and{' '}<Typography onClick={() => {
+                                navigator.clipboard.writeText(successMessageData.sigusd)
+                                copyToClipboard(successMessageData.sigusd)
+                            }
+                            } variant="span" sx={{ color: 'text.primary' }}>
+                                 {successMessageData.sigusd} sigUSD
+                            </Typography></>}
                             {' '}to{' '}
                             <Typography onClick={() => {
                                     navigator.clipboard.writeText(successMessageData.address)
@@ -490,6 +501,13 @@ const Purchase = () => {
                             } variant="span" sx={{ color: 'text.primary' }}>
                                 {friendlyAddress(successMessageData.address)}
                             </Typography>
+                            {(successMessageData.sigusd > 0.0) && 
+                                <>
+                                    <Typography variant="p" sx={{ fontSize: '0.9rem', mt: 2, mb: 2 }}>
+                                        Note: Yoroi users will not need to add 0.01 erg, it is already done by Yoroi. Other wallet users do need to include that amount with the sigUSD tokens they send.
+                                    </Typography>
+                                </>
+                            }
                         </DialogContentText>
                         <Card sx={{ background: '#fff', width: {xs: '200px', md: '370px'}, margin: '16px auto', display: 'flex', justifyContent: 'center'}}>
                             <CardContent sx={{ display: 'flex', justifyContent: 'center' }}>
@@ -500,6 +518,13 @@ const Purchase = () => {
                                 />
                             </CardContent>
                         </Card>
+                        {(successMessageData.sigusd > 0.0) && 
+                                <>
+                                    <Typography variant="p" sx={{ fontSize: '0.9rem', mt: 2, mb: 2 }}>
+                                        The QR code will not enter sigUSD values for you, you must enter them manually. 
+                                    </Typography>
+                                </>
+                            }
                     </DialogContent>
                     <DialogActions>
                         <Button onClick={handleCloseSuccess} autoFocus>
