@@ -31,12 +31,14 @@ const timelineItems = [
 	{
 		date: 'January 2, 2022',
 		title: 'First IDO Announcements',
-		body: 'By this date, we will announce at least one of the first IDOs launched on ErgoPad.'
+		body: 'By this date, we will announce at least one of the first IDOs launched on ErgoPad.',
+		passed: true
 	},
 	{
 		date: 'January 3, 2021',
 		title: 'Strategic sale',
-		body: 'ErgoPad Strategic Sale contracts become available. Whitelisted users will have 48 hours to send Erg and secure their tokens.'
+		body: 'ErgoPad Strategic Sale contracts become available. Whitelisted users will have 48 hours to send Erg and secure their tokens.',
+		passed: true
 	},
 	{
 		date: 'January 15, 2022',
