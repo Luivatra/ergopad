@@ -60,6 +60,12 @@ function friendlyAddress(addr, tot = 13) {
     return addr.slice(0, tot) + '...' + addr.slice(-tot);
 }
 
+const defaultOptions = {
+    headers: {
+        'Content-Type': 'application/json',
+    },
+};
+
 const Purchase = () => {
     const mediumWidthUp = useMediaQuery((theme) => theme.breakpoints.up('md'));
     // boolean object for each checkbox
@@ -94,6 +100,33 @@ const Purchase = () => {
 
     const [alignment, setAlignment] = useState('sigusd');
 
+    const [sigusdApprovalMessage, setSigusdApprovalMessage] = useState('Please enter an Ergo address to see how much sigUSD is approved.')
+
+    const [checkTimeout, setCheckTimeout] = useState(false)
+
+    // helper text for sigvalue
+    const [sigHelper, setSigHelper] = useState('')
+
+    const apiCheck = () => {
+        axios.get(`${process.env.API_URL}/blockchain/info`, { ...defaultOptions })
+            .then(res => {
+                console.log(res)
+                if (res.data.currentTime_ms > 1641229200000 && !checkboxError) {
+                    setbuttonDisabled(false)
+                    // console.log('set enabled due to GMT date API call')
+                }
+            })
+            .catch((err) => {
+				console.log(err)
+            }); 
+    }
+
+    useEffect(() => {
+        if (!isLoading) {
+            apiCheck()
+        }
+    }, [buttonDisabled])
+
     const handleCurrencyChange = (e, newAlignment) => {
         if (newAlignment !== null) {
             setAlignment(newAlignment);
@@ -106,23 +139,59 @@ const Purchase = () => {
 
     const { wallet } = useWallet()
     const { setAddWalletOpen } = useAddWallet()
-
+    
     const openWalletAdd = () => {
         setAddWalletOpen(true)
     }
 
-    const sigusdApprovalMessage = () => {
-        if (wallet == '') {
-            return 'Please enter an Ergo address to see how much sigUSD is approved.'
+    useEffect(() => {
+        if (sigusdAllowed >= 0.0) {
+            setSigusdApprovalMessage('This address is approved for ' + sigusdAllowed + ' sigUSD max')
         }
-        if (wallet != '' && sigusdAllowed == 0.0) {
-            return 'This wallet is not approved on the whitelist. '
+        else if (sigusdAllowed < 0.0 && wallet) {
+            setSigusdApprovalMessage('There is a pending transaction, either send the funds or wait for it to time-out to try again. ')
         }
-        return ('This address is approved for ' + sigusdAllowed + ' sigUSD max')
+        else if (!wallet) {
+            setSigusdApprovalMessage('Please enter an Ergo address to see how much sigUSD is approved.')
+        }
+    }, [sigusdAllowed])
+
+    const checkWalletApproval = (noSnack) => {
+        if (wallet != '') {
+            axios.get(`${process.env.API_URL}/blockchain/allowance/${wallet}`)
+            .then(res => {
+                console.log(res);
+                console.log(res.data);
+                if (res.data?.message === 'remaining sigusd') {
+                    setSigusdAllowed(res.data.sigusd)
+                    setCheckTimeout(false)
+                    handleChange({target: {name: 'amount', value: ''}})
+                }
+                else if (res.data?.message === 'pending') {
+                    setSigusdAllowed(res.data.sigusd)
+                    setCheckTimeout(true)
+                    setSigHelper('Please wait for pending transaction to time-out')
+                    if (formErrors.amount != true) {
+                        setFormErrors({
+                            ...formErrors,
+                            amount: true
+                        });
+                    }
+                    if (noSnack) {
+                        setErrorMessage('Transaction is still pending (it takes 5 minutes)')
+                        setOpenError(true)
+                    }
+                }
+            })
+            .catch((err) => {
+                console.log(err?.response?.data)
+            });
+        }
     }
 
     useEffect(() => {
-        axios.get(`${process.env.API_URL}/blockchain/allowance/${wallet}`)
+        if (wallet != '') {
+            axios.get(`${process.env.API_URL}/blockchain/allowance/${wallet}`)
             .then(res => {
                 console.log(res);
                 console.log(res.data);
@@ -137,25 +206,49 @@ const Purchase = () => {
                         wallet: wallet
                     });
                 }
-                else {
+                if (res.data?.message === 'not found') {
+                    setSigusdAllowed(0.0)
                     setFormErrors({
                         ...formErrors,
                         wallet: true
                     });
-                    setSigusdAllowed(0.0)
+                    updateFormData({
+                        ...formData,
+                        wallet: wallet
+                    });
                 }
+                else if (res.data?.message === 'pending') {
+                    setSigusdAllowed(res.data.sigusd)
+                    setSigHelper('Please wait for pending transaction to time-out')
+                    setFormErrors({
+                        ...formErrors,
+                        wallet: false,
+                        amount: true
+                    });
+                    updateFormData({
+                        ...formData,
+                        wallet: wallet
+                    });
+                    setCheckTimeout(true)
+                }
+                
             })
             .catch((err) => {
                 console.log(err?.response?.data)
             });
+        }
+        else {
+            setFormErrors({
+                ...formErrors,
+                wallet: true
+            });
+            setSigusdAllowed(0.0)
+        }
     }, [wallet])
 
     useEffect(() => {
         if (isLoading) {
             setbuttonDisabled(true)
-        }
-        else {
-            setbuttonDisabled(false)
         }
     }, [isLoading])
 
@@ -170,7 +263,11 @@ const Purchase = () => {
     const checkboxError = [legal, risks, dao].filter((v) => v).length !== 3
 
     useEffect(() => {
-        checkboxError ? setbuttonDisabled(true) : setbuttonDisabled(false)
+        apiCheck()
+        if (checkboxError && buttonDisabled != true) {
+            setbuttonDisabled(true)
+            // console.log('set disabled due to checkbox error')
+        }
     }, [checkboxError])
 
     // snackbar for error reporting
@@ -200,6 +297,7 @@ const Purchase = () => {
 
     const handleChange = (e) => {
         if (e.target.value == '' || e.target.value == 0.0) {
+            setSigHelper('Please enter the amount you\'d like to invest in sigUSD. ')
 			setFormErrors({
 				...formErrors,
 				[e.target.name]: true
@@ -225,6 +323,7 @@ const Purchase = () => {
                 });
 			}
 			else {
+                setSigHelper('Must be a value within your approved amount')
 				setFormErrors({
 					...formErrors,
 					amount: true
@@ -254,8 +353,6 @@ const Purchase = () => {
                 console.log(res.data);
                 setLoading(false)
 
-
-
                 // modal for success message
 				setOpenSuccess(true)
                 setSuccessMessageData({
@@ -264,6 +361,7 @@ const Purchase = () => {
                     address: res.data.smartContract,
                     sigusd: (formData.currency === 'sigusd') ? formData.amount : 0.0
                 })
+                checkWalletApproval(false)
             })
             .catch((err) => {
                 if (err.response?.status) {
@@ -334,7 +432,7 @@ const Purchase = () => {
 						Token Purchase Form
 					</Typography>
                     <Typography variant="p" sx={{ fontSize: '1rem', mb: 1 }}>
-                        Note: {sigusdApprovalMessage()}
+                        Note: {sigusdApprovalMessage}
                     </Typography>
                     <TextField
                         InputProps={{ disableUnderline: true }}
@@ -347,8 +445,10 @@ const Purchase = () => {
                         sx={{ mb: 3 }}
                         onChange={handleChange}
                         error={formErrors.amount}
-                        helperText={formErrors.amount && 'Must be a value below your approved amount'}
+                        helperText={formErrors.amount && sigHelper}
                     />
+
+                    {checkTimeout && <Button onClick={checkWalletApproval} variant="outlined" sx={{mt: -2, mb: 3}}>Check if transaction has timed-out</Button>}
 
                     <Typography variant="p" sx={{ fontSize: '1rem', mb: 1 }}>Select which currency you would like to send: </Typography>
                     <ToggleButtonGroup
@@ -455,12 +555,12 @@ const Purchase = () => {
                     )}
 				</Box>
 
-                <Snackbar open={openError} autoHideDuration={6000} onClose={handleCloseError}>
+                <Snackbar open={openError} autoHideDuration={4500} onClose={handleCloseError}>
                     <Alert onClose={handleCloseError} severity="error" sx={{ width: '100%' }}>
                         {errorMessage}
                     </Alert>
                 </Snackbar>
-                <Snackbar open={openSuccessSnackbar} autoHideDuration={6000} onClose={handleCloseSuccessSnackbar}>
+                <Snackbar open={openSuccessSnackbar} autoHideDuration={4500} onClose={handleCloseSuccessSnackbar}>
                     <Alert onClose={handleCloseSuccessSnackbar} severity="success" sx={{ width: '100%' }}>
                         {successMessageSnackbar}
                     </Alert>
