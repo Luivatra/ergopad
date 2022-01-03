@@ -9,24 +9,24 @@ import aiofiles
 from aiocsv import AsyncReader
 from time import time
 from argparse import ArgumentParser
-from config import Config, Network # api specific config
-from wallet import Wallet # ergopad.io library
+# from config import Config, Network # api specific config
+# from wallet import Wallet # ergopad.io library
 
 ### LOGGING
 import logging
-logging.basicConfig(format='{asctime}:{name:>8s}:{levelname:<8s}::{message}', style='{', levelname=logging.DEBUG)
+logging.basicConfig(format='{asctime}:{name:>8s}:{levelname:<8s}::{message}', style='{', level=logging.INFO)
 
 ### ARGV
-parser = ArgumentParser(description='ergo wallet')
-parser.add_argument('-w', '--wallet', help='mainnet wallet address')
-args = parser.parse_args()
+# parser = ArgumentParser(description='ergo wallet')
+# parser.add_argument('-w', '--wallet', help='mainnet wallet address')
+# args = parser.parse_args()
 
 ### INIT
-CFG = Config[Network]
+# CFG = Config[Network]
 
 assembler = 'http://38.15.40.14:8888'
 ergonode  = 'http://38.15.40.14:9053'
-headers   = {'Content-Type': 'application/json', 'api_key': CFG.apiKey}
+headers   = {'Content-Type': 'application/json'}
 myself    = lambda: inspect.stack()[1][3]
 
 ### FUNCTIONS
@@ -39,6 +39,8 @@ async def getWhitelist():
                     'sigusd': float(row[0])
                 }
         return list
+
+        logging.info(f'number of whitelisted wallets: {len(list.keys())}')
 
     except Exception as e:
         return {'status': 'error', 'def': myself(), 'message': e}
@@ -64,87 +66,108 @@ async def getBlacklist():
 
         return list
 
+        logging.info(f'number of blacklisted wallets: {len(list.keys())}')
+
     except Exception as e:
         return {'status': 'error', 'def': myself(), 'message': e}
 
 def getAssemblerIds(list):
-    ids = {}
-    if not os.path.exists('assemblerStatus.tsv'):
-        open(f'assemblerStatus.tsv', 'w').close() # touch
+    try:
+        ids = {}
+        if not os.path.exists('assemblerStatus.tsv'):
+            open(f'assemblerStatus.tsv', 'w').close() # touch
 
-    with open(f'assemblerStatus.tsv') as f:
-        for row in f.readlines():
-            try:
-                r = row.rstrip().split('\t')
-                ids[r[0]] = r[1]
-            except:
-                pass
+        with open(f'assemblerStatus.tsv') as f:
+            for row in f.readlines():
+                try:
+                    r = row.rstrip().split('\t')
+                    ids[r[0]] = r[1]
+                except:
+                    pass
 
-    logging.debug(f'ids: {ids}')
-
-    for wallet in list:
-        for l in list[wallet]:
-            res = requests.get(f'{assembler}/result/{l["assemblerId"]}')            
-            if res.ok:
+        for wallet in list:
+            for l in list[wallet]:
+                res = requests.get(f'{assembler}/result/{l["assemblerId"]}')
+                # if res.ok: # cannot use this since Invoker.first returns json as status_code 400
                 try:
                     detail = res.json()['detail']                    
+                    logging.debug(f'assmid::{l["assemblerId"]}')
+                    logging.debug(f'detail::{detail}')
                     
                     # ignore any other or missing status
                     if detail == 'success' or detail == 'pending' or detail == 'timeout' or detail == 'returning':                        
                         ids[l['assemblerId']] = detail                    
+                    elif l['assemblerId'] not in ids:
+                        if detail == 'Invoker.first':
+                            ids[l['assemblerId']] = 'error'
+                        else:
+                            ids[l['assemblerId']] = 'unknown'
 
                 except:
                     pass
-    
-    with open(f'assemblerStatus.tsv', 'w') as f:
-        for i in ids:
-            f.write(f'{i}\t{ids[i]}\n')
+        
+        with open(f'assemblerStatus.tsv', 'w') as f:
+            for i in ids:
+                f.write(f'{i}\t{ids[i]}\n')
 
-    # logging.debug(ids)
-    return ids
+        logging.info(f'number of assembler ids: {len(ids.keys())}')
+        logging.debug(ids)
+
+        return ids
+
+    except Exception as e:
+        return {'status': 'error', 'def': myself(), 'message': e}
+
 
 def getSpentlist(list, statuslist):
-    # logging.debug(list)
-    spentlist = {}
-    for wallet in list:
-        if wallet not in spentlist:
-            spentlist[wallet] = 0.0
+    try:
+        # logging.debug(list)
+        spentlist = {}
+        for wallet in list:
+            if wallet not in spentlist:
+                spentlist[wallet] = 0.0
 
-        # logging.debug(statuslist)
-        for l in list[wallet]:
-            if spentlist[wallet] >= 0.0:
-                # success, pending, returning, return failed and timeout
-                if l['assemblerId'] in statuslist:
-                    detail = statuslist[l['assemblerId']]
-                    logging.debug(f'detail:: {detail}')
+            # logging.debug(statuslist)
+            for l in list[wallet]:
+                if spentlist[wallet] >= 0.0:
+                    # success, pending, returning, return failed and timeout
+                    if l['assemblerId'] in statuslist:
+                        detail = statuslist[l['assemblerId']]
+                        logging.debug(f"spentlist: {detail}, {l['assemblerId']}")
 
-                    # no longer being tracked
-                    if detail == 'Invoker.first':
-                        logging.debug('Invoker.first')
+                        # no longer being tracked
+                        if detail == 'Invoker.first':
+                            logging.debug('Invoker.first')
 
-                    # success
-                    elif detail == 'success':
-                        spentlist[wallet] += float(l['sigusd'])
+                        # success
+                        elif detail == 'success':
+                            spentlist[wallet] += float(l['sigusd'])
 
-                    # timeout
-                    elif detail == 'timeout':                            
-                        logging.debug('timeout, no change')
+                        # timeout
+                        elif detail == 'timeout':                            
+                            logging.debug('timeout, no change')
+                            spentlist[wallet] += 0 # float(l['sigusd'])
 
-                    # pending, returning, unknown; block further transactions
-                    else: 
-                        # block purchases from this wallet
-                        spentlist[wallet] = -1.0
-                
-                # assemblerId not found; if in blacklist, should have an assembler status
-                else:
-                    spentlist[wallet] = -2.0
+                        # pending, returning, unknown; block further transactions
+                        else: 
+                            # block purchases from this wallet
+                            spentlist[wallet] = -1.0
+                    
+                    # assemblerId not found; if in blacklist, should have an assembler status
+                    else:
+                        spentlist[wallet] = -2.0
 
-    return spentlist
+        logging.info(f'number of spent items: {len(spentlist.keys())}')
+        return spentlist
 
-### MAIN
-if __name__ == '__main__':
-    whitelist = asyncio.run(getWhitelist())
-    blacklist = asyncio.run(getBlacklist())
+    except Exception as e:
+        return {'status': 'error', 'def': myself(), 'message': e}
+
+async def handleAllowance():
+    # whitelist = asyncio.run(getWhitelist())
+    whitelist = await getWhitelist()
+    # blacklist = asyncio.run(getBlacklist())
+    blacklist = await getBlacklist()
     statuslist = getAssemblerIds(blacklist)
     spentlist = getSpentlist(blacklist, statuslist)
 
@@ -158,12 +181,12 @@ if __name__ == '__main__':
         if w in spentlist: 
             spent = spentlist[w]
         # logging.debug(f'wallet: {w}, total: {total}, reamining: {total-spent}, spent: {spent}')
-        if spent == -1:
+        if spent < 0:
             currentlist[w] = {
                 'remaining': 0,
                 'total': total,
                 'spent': spent,
-                'status': 'pending',
+                'status': 'not ready',
             }
         else:
             currentlist[w] = {
@@ -173,7 +196,12 @@ if __name__ == '__main__':
                 'status': 'success',
             }
 
-    logging.info(json.dumps(currentlist))
+    # logging.info(json.dumps(currentlist))
     with open('remaining.tsv', 'w') as f:    
         for w in currentlist:
             f.write(f'{w}\t{currentlist[w]["total"]}\t{currentlist[w]["spent"]}\t{currentlist[w]["remaining"]}\n')
+
+### MAIN
+if __name__ == '__main__':
+    logging.info('main')
+    asyncio.run(handleAllowance())
