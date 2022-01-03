@@ -347,7 +347,7 @@ const Purchase = () => {
 		
 		if (errorCheck && emptyCheck) { 
             console.log(formData)
-			axios.post('ergopad.io/api/blockchain/purchase', { ...formData })
+			axios.post(`${process.env.API_URL}/blockchain/purchase/`, { ...formData })
             .then(res => {
                 console.log(res);
                 console.log(res.data);
