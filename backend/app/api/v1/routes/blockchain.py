@@ -1,4 +1,5 @@
 import requests, json, os
+import math
 
 from starlette.responses import JSONResponse 
 from wallet import Wallet # ergopad.io library
@@ -9,7 +10,7 @@ from pydantic import BaseModel
 from time import time, ctime
 from api.v1.routes.asset import get_asset_current_price
 from base64 import b64encode
-import math
+from ergo.updateAllowance import handleAllowance
 
 #region BLOCKHEADER
 """
@@ -165,7 +166,7 @@ async def getInfo():
       nodeInfo['buyer'] = buyerWallet.address
     nodeInfo['seller'] = nodeWallet.address 
 
-    nodeInfo['vestingBegin_ms'] = f'{ctime(1643245200)} UTC'
+    # nodeInfo['vestingBegin_ms'] = f'{ctime(1643245200)} UTC'
     nodeInfo['sigUSD'] = await get_asset_current_price('sigusd')
     nodeInfo['inDebugMode'] = ('PROD', '!! DEBUG !!')[DEBUG]
 
@@ -500,6 +501,7 @@ def redeemToken(box:str):
 def allowance(wallet:str):
   # round not used for now
   logging.info(f'Strategic sigusd remaining for: {wallet}...')
+  handleAllowance()
 
   # check whitelist
   whitelist = {}
@@ -539,10 +541,15 @@ def allowance(wallet:str):
 
   if wallet in whitelist:
     r = whitelist[wallet]['amount']
+    spent = 0
     if wallet in remaining:
       r = remaining[wallet]['remaining']
+      spent = remaining[wallet]['spent']
     logging.info(f"sigusd: {whitelist[wallet]['amount']}")
-    return {'wallet': wallet, 'sigusd': r, 'message': 'remaining sigusd'}
+    if spent == -1.0:
+      return {'wallet': wallet, 'sigusd': -1.0, 'message': 'pending'}  
+    else:
+      return {'wallet': wallet, 'sigusd': r, 'message': 'remaining sigusd'}
 
   logging.info(f'sigusd: 0 (not found)')
   return {'wallet': wallet, 'sigusd': 0.0, 'message': 'not found'}
@@ -550,9 +557,23 @@ def allowance(wallet:str):
 # purchase tokens
 @r.post("/purchase/", name="blockchain:purchaseToken")
 async def purchaseToken(tokenPurchase: TokenPurchase):  
-  tokenId = validCurrencies['ergopad'] #CFG.ergopadTokenId
+  # early check
+  try:
+    nodeInfo = await getInfo()
+    now = int(nodeInfo['currentTime_ms']/1000.0)
+  except:
+    now = int(time())
+    pass
+  logging.debug(now)
+  if now < 1641229200:
+    return {
+      'status'  : 'waiting', 
+      'now'     : now,
+      'message' : 'token sale begins 1/3 @5p UTC',
+    }
 
   # handle price exceptions
+  tokenId = validCurrencies['ergopad'] #CFG.ergopadTokenId
   priceOverride = 5.0
   price = priceOverride
   try:
@@ -611,7 +632,7 @@ async def purchaseToken(tokenPurchase: TokenPurchase):
     txMin_nerg         = int(.01*nergsPerErg)
 
     # if sending sigusd, assert(isToken)=True
-    strategic2Sigusd   = (.02, .0002)[DEBUG] # strategic round .02 sigusd per token (50 strategic tokens per sigusd)
+    strategic2Sigusd   = .02 # strategic round .02 sigusd per token (50 strategic tokens per sigusd)
     tokenAmount        = int(amount/strategic2Sigusd)*ergopadDecimals 
     coinAmount_nerg    = int(amount/price*nergsPerErg) 
     sendAmount_nerg    = coinAmount_nerg+2*txFee_nerg
@@ -806,7 +827,10 @@ async def purchaseToken(tokenPurchase: TokenPurchase):
     with open(f'blacklist.tsv', 'a') as f:
       # buyer, timestamp, sigusd, uuid
       f.write('\t'.join([buyerWallet.address, str(time()), str(amount), str(id)])+'\n')
-  
+
+    await handleAllowance()
+
+
     logging.debug(f'::TOOK {time()-st:.2f}s')
     if isToken:
       message = f'send {sendAmount_nerg/nergsPerErg} ergs and {amount} sigusd to {scPurchase}'
