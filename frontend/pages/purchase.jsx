@@ -107,6 +107,7 @@ const Purchase = () => {
     // helper text for sigvalue
     const [sigHelper, setSigHelper] = useState('')
 
+
     const apiCheck = () => {
         axios.get(`${process.env.API_URL}/blockchain/info`, { ...defaultOptions })
             .then(res => {
@@ -534,8 +535,8 @@ const Purchase = () => {
                     <Button
                             type="submit"
                             fullWidth
-                            disabled={buttonDisabled}
-                            //disabled={true}
+                            // disabled={buttonDisabled}
+                            disabled={true}
                             variant="contained"
                             sx={{ mt: 3, mb: 2 }}
                     >
@@ -554,6 +555,10 @@ const Purchase = () => {
                         />
                     )}
 				</Box>
+
+                <Typography>
+                    Please note: there is currently a node sync error. The form will activate again when the node is operational. 
+                </Typography>
 
                 <Snackbar open={openError} autoHideDuration={4500} onClose={handleCloseError}>
                     <Alert onClose={handleCloseError} severity="error" sx={{ width: '100%' }}>

@@ -61,7 +61,6 @@ const initialCheckboxState = Object.freeze({
 const defaultOptions = {
     headers: {
         'Content-Type': 'application/json',
-        // Authorization: auth?.accessToken ? `Bearer ${auth.accessToken}` : '',
     },
 };
 
