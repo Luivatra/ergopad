@@ -535,8 +535,8 @@ const Purchase = () => {
                     <Button
                             type="submit"
                             fullWidth
-                            // disabled={buttonDisabled}
-                            disabled={true}
+                            disabled={buttonDisabled}
+                            // disabled={true}
                             variant="contained"
                             sx={{ mt: 3, mb: 2 }}
                     >
@@ -555,10 +555,6 @@ const Purchase = () => {
                         />
                     )}
 				</Box>
-
-                <Typography>
-                    Please note: there is currently a node sync error. The form will activate again when the node is operational. 
-                </Typography>
 
                 <Snackbar open={openError} autoHideDuration={4500} onClose={handleCloseError}>
                     <Alert onClose={handleCloseError} severity="error" sx={{ width: '100%' }}>
