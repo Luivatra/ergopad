@@ -44,13 +44,13 @@ Late Jan | IDO Project promotions and pre-sale dates announced | There will be s
 
 ## Tokenomics
 
-- Token Name: ErgoPad
-- Token ID: TBD
-- Blockchain: Ergo
-- Initial supply: 79M
-- Initial supply at IDO date (based on vesting schedule): 20M
-- Market cap at IDO 800k sigUSD
-- Total supply: 400M
+Token Name | ErgoPad
+Token ID | TBD
+Blockchain | Ergo
+Initial supply | 79M
+Initial supply at IDO date (based on vesting schedule) | 20M
+Market cap at IDO | 800k sigUSD
+Total supply | 400M
 
 ### Early Investment Rounds
 
