@@ -91,11 +91,11 @@ const tokenCards = [
     },
     {
         title: 'Market Cap at IDO:',
-        desc: '600k SigUSD'
+        desc: '800k SigUSD'
     },
     {
-        title: 'Pre-sale Price:',
-        desc: '0.03 SigUSD'
+        title: 'IDO Price:',
+        desc: '0.04 SigUSD'
     },
     {
         title: 'Total Available Supply:',
