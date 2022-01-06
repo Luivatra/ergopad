@@ -74,6 +74,8 @@ Staking | 321M | N/A | N/A | N/A | Daily for 36 months
 
 Staking provides a few utilites. Staking your ErgoPad tokens will generate new tokens based on the number you have staked and the emission schdule. If you reach one of the staking tiers, you'll get pool allocation which gives you an opportunity to buy into new projects launched on ErgoPad at seed-sale prices not always open to the public. 
 
+Staking will go live very shortly after IDO on January 26th. 
+
 ### Tiers
 
 Tier | Amount | Whitelist Requirements | Allocation Weight
