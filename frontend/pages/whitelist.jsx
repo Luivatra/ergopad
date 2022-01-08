@@ -61,7 +61,6 @@ const initialCheckboxState = Object.freeze({
 const defaultOptions = {
     headers: {
         'Content-Type': 'application/json',
-        // Authorization: auth?.accessToken ? `Bearer ${auth.accessToken}` : '',
     },
 };
 
@@ -213,6 +212,8 @@ const Whitelist = () => {
           // Trimming any whitespace
           [e.target.name]: e.target.value.trim()
         });
+
+        console.log(formData)
       };
 
     const handleChecked = (e) => {
@@ -254,10 +255,10 @@ const Whitelist = () => {
 		const errorCheck = Object.values(formErrors).every(v => v === false)
 		
         // const form = {
-        //    to: process.env.FORM_EMAIL,
-        //    subject: "ErgoPad Strategic-Sale Whitelist Application",
-        //    body: JSON.stringify(formData)
-        // }
+        //     to: process.env.FORM_EMAIL,
+        //     subject: "ErgoPad Strategic-Sale Whitelist Application",
+        //     body: JSON.stringify(formData)
+        //   }
 
         const form = {
             name: formData.name,
@@ -282,7 +283,9 @@ const Whitelist = () => {
             })
             .catch((err) => {
                 // snackbar for error message
-				setErrorMessage('ERROR POSTING: ' + err)
+				setErrorMessage('ERROR ' + err.response.status + ' ' + err.response.data.message)
+                setOpenError(true)
+                console.log(err.response.data)
                 setLoading(false)
             }); 
 		}
