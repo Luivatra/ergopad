@@ -14,8 +14,8 @@ next.config.js
 
 # production
 /build
-whitelist.csv
-blacklist.tsv
+backend/app/*.?sv
+
 
 # misc
 .DS_Store

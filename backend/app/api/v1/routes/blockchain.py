@@ -99,12 +99,13 @@ try:
   # mainnet
   else:
     validCurrencies    = {
-      'seedsale' : '8eb9a97f4c8e5409ade9a13625f2bbb9f8b081e51d37f623233444743fae8321', # xeed1k
+      # 'seedsale' : '8eb9a97f4c8e5409ade9a13625f2bbb9f8b081e51d37f623233444743fae8321', # xeed1k
       # 'sigusd'   : '8eb9a97f4c8e5409ade9a13625f2bbb9f8b081e51d37f623233444743fae8321', # xeed1k
-      'sigusd'   : '29275cf36ffae29ed186df55ac6f8d47b367fe8e398721e200acb71bc32b10a0', # xyzpad
+      # 'sigusd'   : '29275cf36ffae29ed186df55ac6f8d47b367fe8e398721e200acb71bc32b10a0', # xyzpad
       # 'sigusd'   : '191dd93523e052d9be49680508f675f82e461ef5452d60143212beb42b7f62a8',
-      'ergopad'  : 'cc3c5dc01bb4b2a05475b2d9a5b4202ed235f7182b46677ed8f40358333b92bb', # xerg10M / TESTING, strategic token
-      # 'sigusd'   : '03faf2cb329f2e90d6d23b58d91bbb6c046aa143261cc21f52fbe2824bfcbf04', # official SigUSD (SigmaUSD - V2)
+      # 'ergopad'  : 'cc3c5dc01bb4b2a05475b2d9a5b4202ed235f7182b46677ed8f40358333b92bb', # xerg10M / TESTING, strategic token
+      'ergopad'  : '60def1ed45ffc6493c8c6a576c7a23818b6b2dfc4ff4967e9867e3795886c437', # official
+      'sigusd'   : '03faf2cb329f2e90d6d23b58d91bbb6c046aa143261cc21f52fbe2824bfcbf04', # official SigUSD (SigmaUSD - V2)
       # 'ergopad'  : 'cc3c5dc01bb4b2a05475b2d9a5b4202ed235f7182b46677ed8f40358333b92bb', # TODO: need official ergopad token
       # 'kushti' : '??',
       # '$COMET' : '??',
@@ -184,6 +185,18 @@ def getTokenInfo(tokenId):
   try:
     tkn = requests.get(f'{CFG.explorer}/tokens/{tokenId}')
     return tkn.json()
+  except Exception as e:
+    logging.error(f'ERR:{myself()}: invalid token request ({e})')
+    return JSONResponse(status_code=status.HTTP_400_BAD_REQUEST, content=f'invalid token request')
+
+# special request for CMC
+@r.get("/emissionAmount/{tokenId}", name="blockchain:emissionAmount")
+def getEmmissionAmount(tokenId):
+  try:
+    tkn = requests.get(f'{CFG.explorer}/tokens/{tokenId}')
+    decimals = tkn.json()['decimals']
+    emissionAmount = tkn.json()['emissionAmount'] / 10**decimals
+    return emissionAmount
   except Exception as e:
     logging.error(f'ERR:{myself()}: invalid token request ({e})')
     return JSONResponse(status_code=status.HTTP_400_BAD_REQUEST, content=f'invalid token request')
@@ -498,10 +511,10 @@ def redeemToken(box:str):
     return JSONResponse(status_code=status.HTTP_400_BAD_REQUEST, content=f'unable to redeem')
 
 @r.get("/allowance/{wallet}", name="blockchain:whitelist")
-def allowance(wallet:str):
+async def allowance(wallet:str):
   # round not used for now
   logging.info(f'Strategic sigusd remaining for: {wallet}...')
-  handleAllowance()
+  await handleAllowance()
 
   # check whitelist
   whitelist = {}
@@ -688,6 +701,7 @@ async def purchaseToken(tokenPurchase: TokenPurchase):
     logging.info(f'wallet: ok\nwhitelist: ok\nergs: {coinAmount_nerg} at price {price}')
 
     # pay ergopad for tokens with coins or tokens
+    # startWhen = {'erg': sendAmount_nerg}
     startWhen = {'erg': sendAmount_nerg}
     outBox = [{
         'address': nodeWallet.address, # nodeWallet.bs64(),
@@ -743,6 +757,7 @@ async def purchaseToken(tokenPurchase: TokenPurchase):
       r4 = '0e'+hex(len(bytearray.fromhex(buyerWallet.ergoTree())))[2:]+buyerWallet.ergoTree() # convert to bytearray
       outBox.append({
         'address': buyerWallet.address,
+        # 'value': txMin_nerg,
         'value': txFee_nerg,
         'registers': {
           'R4': r4
