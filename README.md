@@ -1,4 +1,10 @@
 # Ergopad
+![ergopad-200x200-transparent](https://user-images.githubusercontent.com/42897033/148552822-d4ab78a5-79b0-4078-a8cb-34908ce88cee.png)
+<br>
+<br>
+![Build](https://github.com/ergo-pad/ergopad/actions/workflows/build.yml/badge.svg?branch=dev)
+<br>
+<br>
 Set of docker containers combined to create a React/MaterialUI frontend, REST API backend, assembler to interact with smart contracts and supporting services like ergonode, redis and postgres.<br>
 <br>
 Currently, worker (celery) is disabled (intended to automate the aggregator eventually).  Flower and PGAdmin are used mainly for dev to explore postgres and celery.
