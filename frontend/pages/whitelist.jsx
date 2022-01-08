@@ -260,14 +260,14 @@ const Whitelist = () => {
         // }
 
         const form = {
-            name: formaData.name,
-            email: formaData.email,
-            sigValue: formaData.sigValue,
-            ergoAddress: formaData.ergoAddress,
-            chatHandle: formaData.chatHandle,
-            chatPlatform: formaData.chatPlatform,
-            socialHandle: formaData.socialHandle,
-            socialPlatform: formaData.socialPlatform,
+            name: formData.name,
+            email: formData.email,
+            sigValue: formData.sigValue,
+            ergoAddress: formData.ergoAddress,
+            chatHandle: formData.chatHandle,
+            chatPlatform: formData.chatPlatform,
+            socialHandle: formData.socialHandle,
+            socialPlatform: formData.socialPlatform,
         }
 
 		if (errorCheck && emptyCheck) { 
